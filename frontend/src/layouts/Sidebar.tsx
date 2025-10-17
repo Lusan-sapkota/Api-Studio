@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FolderOpen, Globe, History, FileText, ChevronLeft, ChevronRight } from 'lucide-react';
+import { FolderOpen, Globe, History, FileText, ChevronLeft, ChevronRight, Send } from 'lucide-react';
 import { SidebarItem } from '../components/SidebarItem';
 import { Button } from '../components/Button';
 
@@ -10,6 +10,7 @@ export function Sidebar() {
   const location = useLocation();
 
   const menuItems = [
+    { icon: Send, label: 'API Client', path: '/request' },
     { icon: FolderOpen, label: 'Collections', path: '/collections' },
     { icon: Globe, label: 'Environments', path: '/environments' },
     { icon: History, label: 'History', path: '/history', badge: 5 },

@@ -1,4 +1,4 @@
-from sqlmodel import SQLModel, Field, Relationship
+from sqlmodel import SQLModel, Field, Relationship, JSON
 from typing import Optional, List, Dict, Any
 from datetime import datetime
 
@@ -43,7 +43,7 @@ class Collection(BaseModel, table=True):
 class Request(BaseModel, table=True):
     method: str  # GET, POST, etc.
     url: str
-    headers: Optional[Dict[str, str]] = Field(default_factory=dict)
+    headers: Optional[Dict[str, str]] = Field(default_factory=dict, sa_type=JSON)
     body: Optional[str] = None
     collection_id: int = Field(foreign_key="collection.id")
 
@@ -54,7 +54,7 @@ class Request(BaseModel, table=True):
 
 class Environment(BaseModel, table=True):
     name: str
-    variables: Dict[str, str] = Field(default_factory=dict)  # key-value pairs
+    variables: Dict[str, str] = Field(default_factory=dict, sa_type=JSON)
     workspace_id: int = Field(foreign_key="workspace.id")
 
     # Relationships
