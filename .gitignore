@@ -1,98 +1,12 @@
-# Python / FastAPI Backend
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
-*.egg-info/
-.installed.cfg
-*.egg
-
-# Virtual Environment
-backend/venv/
-backend/env/
-backend/ENV/
-backend/.venv/
-venv/
-env/
-.venv/
-
-# Environment Variables
-.env
-.env.local
-.env.production
-backend/.env
-frontend/.env
-
-# Database
-*.db
-*.sqlite3
-*.sqlite
-
-# Alembic
-backend/alembic/versions/*.pyc
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-.tox/
-backend/.pytest_cache/
-
-# Node / React Frontend
-node_modules/
-frontend/node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-lerna-debug.log*
-
-# React Build
-frontend/build/
-frontend/dist/
-frontend/dist-ssr/
-*.local
-
-# IDE / Editor
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-logs/
-*.pid
-
-# FastAPI specific
-instance/
-.webassets-cache
-
-# Notes
-.pnotes
-
-# Github
-.github
+.venv
+venv
+__pycache__
+.gitignore
+.git
+.vscode
+.pnotest
+.idea
+.vscode-test
+.vscode-test-workspace
+.vscode-test-workspace
+.vscode-test-workspace
