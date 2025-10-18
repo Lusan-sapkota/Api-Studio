@@ -1,14 +1,16 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 from contextlib import asynccontextmanager
 from core.database import create_db_and_tables
 from core.config import settings
 from db.seed import seed_database
 from core.database import get_session
-from api.routes import requests, collections, environments, workspaces, auth, docs
+from api.routes import requests, collections, environments, workspaces, auth, docs, notes, tasks, websocket_client, graphql_client, grpc_client, smtp_client
+import os
+from dotenv import load_dotenv
 
-# WebSocket endpoint
-from fastapi import WebSocket
+# Load environment variables
+load_dotenv()
 
 
 @asynccontextmanager
@@ -47,6 +49,12 @@ app.include_router(environments.router)
 app.include_router(workspaces.router)
 app.include_router(auth.router)
 app.include_router(docs.router)
+app.include_router(notes.router)
+app.include_router(tasks.router)
+app.include_router(websocket_client.router)
+app.include_router(graphql_client.router)
+app.include_router(grpc_client.router)
+app.include_router(smtp_client.router)
 
 
 @app.get("/")

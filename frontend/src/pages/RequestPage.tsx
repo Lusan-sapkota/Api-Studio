@@ -7,6 +7,7 @@ import { Select } from '../components/Select';
 import { Tabs, Tab } from '../components/Tabs';
 import { Card } from '../components/Card';
 import { SaveToCollectionModal } from '../components/SaveToCollectionModal';
+import { NotesTasksPanel } from '../components/NotesTasksPanel';
 
 interface Header {
   key: string;
@@ -119,6 +120,7 @@ export function RequestPage() {
     { id: 'headers', title: 'Headers' },
     { id: 'body', title: 'Body' },
     { id: 'auth', title: 'Authorization' },
+    { id: 'notes', title: 'Notes & Tasks' },
   ];
 
   // Load history from localStorage on mount
@@ -817,6 +819,14 @@ export function RequestPage() {
                 )}
               </div>
             </Card>
+          )}
+
+          {activeTab === 'notes' && (
+            <NotesTasksPanel 
+              contextType="request" 
+              contextId={activeRequestTab}
+              className="h-full"
+            />
           )}
         </div>
       </Panel>

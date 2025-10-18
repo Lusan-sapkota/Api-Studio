@@ -70,6 +70,30 @@ class Environment(BaseModel, table=True):
     workspace: Workspace = Relationship(back_populates="environments")
 
 
+class Note(BaseModel, table=True):
+    title: str
+    content: str
+    context_type: str  # 'workspace', 'environment', 'collection', 'request'
+    context_id: Optional[int] = None  # ID of the related entity
+    workspace_id: int = Field(foreign_key="workspace.id")
+    
+    # Relationships
+    workspace: Workspace = Relationship()
+
+
+class Task(BaseModel, table=True):
+    title: str
+    status: str = Field(default="todo")  # todo, in_progress, done
+    priority: str = Field(default="medium")  # low, medium, high
+    due_date: Optional[datetime] = None
+    context_type: str  # 'workspace', 'environment', 'collection', 'request'
+    context_id: Optional[int] = None  # ID of the related entity
+    workspace_id: int = Field(foreign_key="workspace.id")
+    
+    # Relationships
+    workspace: Workspace = Relationship()
+
+
 class Doc(BaseModel, table=True):
     title: str
     content: str  # Generated documentation
