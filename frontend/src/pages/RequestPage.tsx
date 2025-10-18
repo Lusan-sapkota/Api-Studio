@@ -6,6 +6,7 @@ import { Input } from '../components/Input';
 import { Select } from '../components/Select';
 import { Tabs, Tab } from '../components/Tabs';
 import { Card } from '../components/Card';
+import { SaveToCollectionModal } from '../components/SaveToCollectionModal';
 
 interface Header {
   key: string;
@@ -55,6 +56,8 @@ interface RequestTab {
     apiKeyName: string;
   };
   response?: ResponseData | null;
+  hasUnsavedChanges?: boolean;
+  savedToCollection?: boolean;
 }
 
 export function RequestPage() {
@@ -80,11 +83,14 @@ export function RequestPage() {
         apiKey: '',
         apiKeyName: ''
       },
-      response: null
+      response: null,
+      hasUnsavedChanges: false,
+      savedToCollection: false
     }
   ]);
   const [activeRequestTab, setActiveRequestTab] = useState('tab-1');
   const [history, setHistory] = useState<RequestTab[]>([]);
+  const [showSaveModal, setShowSaveModal] = useState(false);
 
   // Get current tab data
   const currentTab = apiRequestTabs.find(tab => tab.id === activeRequestTab) || apiRequestTabs[0];
@@ -174,7 +180,9 @@ export function RequestPage() {
         apiKey: '',
         apiKeyName: ''
       },
-      response: null
+      response: null,
+      hasUnsavedChanges: false,
+      savedToCollection: false
     };
     setApiRequestTabs([...apiRequestTabs, newTab]);
     setActiveRequestTab(newTabId);
@@ -195,7 +203,12 @@ export function RequestPage() {
     setApiRequestTabs(tabs => 
       tabs.map(tab => 
         tab.id === activeRequestTab 
-          ? { ...tab, ...updates }
+          ? { 
+              ...tab, 
+              ...updates, 
+              hasUnsavedChanges: true,
+              savedToCollection: false 
+            }
           : tab
       )
     );
@@ -210,28 +223,24 @@ export function RequestPage() {
       ...tabToDuplicate,
       id: newTabId,
       title: `${tabToDuplicate.title} (Copy)`,
-      response: null
+      response: null,
+      hasUnsavedChanges: true,
+      savedToCollection: false
     };
     
     setApiRequestTabs([...apiRequestTabs, duplicatedTab]);
     setActiveRequestTab(newTabId);
   };
 
-  const saveToCollection = () => {
-    // Simple implementation - save to localStorage for now
+  const handleSaveToCollection = (collectionId: number, folderId?: string, requestName?: string) => {
     const collections = JSON.parse(localStorage.getItem('api-collections') || '[]');
-    const requestName = prompt('Enter request name:') || `${method} ${url}`;
-    const collectionName = prompt('Enter collection name:') || 'Default Collection';
+    const collection = collections.find((c: any) => c.id === collectionId);
     
-    let collection = collections.find((c: any) => c.name === collectionName);
-    if (!collection) {
-      collection = { id: Date.now(), name: collectionName, requests: [] };
-      collections.push(collection);
-    }
+    if (!collection) return;
     
-    collection.requests.push({
+    const newRequest = {
       id: Date.now(),
-      name: requestName,
+      name: requestName || `${currentTab.method} ${currentTab.url}`,
       method: currentTab.method,
       url: currentTab.url,
       headers: currentTab.headers,
@@ -240,10 +249,27 @@ export function RequestPage() {
       bodyType: currentTab.bodyType,
       authType: currentTab.authType,
       authData: currentTab.authData
-    });
+    };
+    
+    if (folderId) {
+      // Save to folder
+      const folder = collection.folders?.find((f: any) => f.id === folderId);
+      if (folder) {
+        folder.requests.push(newRequest);
+      }
+    } else {
+      // Save to root collection
+      collection.requests.push(newRequest);
+    }
     
     localStorage.setItem('api-collections', JSON.stringify(collections));
-    alert('Request saved to collection!');
+    
+    // Mark as saved
+    updateCurrentTab({ 
+      hasUnsavedChanges: false, 
+      savedToCollection: true,
+      title: requestName || currentTab.title
+    });
   };
 
   const addHeader = () => {
@@ -480,8 +506,11 @@ export function RequestPage() {
               }`}>
                 {tab.method}
               </span>
-              <span className="text-sm text-neutral-900 dark:text-neutral-100 truncate max-w-32">
+              <span className="text-sm text-neutral-900 dark:text-neutral-100 truncate max-w-32 flex items-center gap-1">
                 {tab.title}
+                {tab.hasUnsavedChanges && !tab.savedToCollection && (
+                  <span className="w-2 h-2 bg-orange-500 rounded-full" title="Unsaved changes" />
+                )}
               </span>
               {tab.response && (
                 <div className={`w-2 h-2 rounded-full ${
@@ -544,7 +573,11 @@ export function RequestPage() {
             )}
             Send
           </Button>
-          <Button variant="secondary" onClick={() => saveToCollection()} title="Save to collection">
+          <Button 
+            variant="secondary" 
+            onClick={() => setShowSaveModal(true)} 
+            title="Save to collection"
+          >
             <Save className="w-4 h-4" />
           </Button>
           <Button variant="ghost" onClick={() => duplicateTab(activeRequestTab)} title="Duplicate tab">
@@ -943,6 +976,14 @@ export function RequestPage() {
           </div>
         </div>
       </Panel>
+
+      {/* Save to Collection Modal */}
+      <SaveToCollectionModal
+        isOpen={showSaveModal}
+        onClose={() => setShowSaveModal(false)}
+        onSave={handleSaveToCollection}
+        defaultRequestName={currentTab.url ? `${currentTab.method} ${currentTab.url}` : 'New Request'}
+      />
     </PanelGroup>
   );
 }

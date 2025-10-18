@@ -3,6 +3,7 @@ import { Plus, Globe, Edit2, Trash2, X, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
+import { ConfirmModal, InputModal } from '../components/Modal';
 
 interface EnvironmentVariable {
   key: string;
@@ -23,6 +24,11 @@ export function EnvironmentsPage() {
   const [environments, setEnvironments] = useState<Environment[]>([]);
   const [editingEnv, setEditingEnv] = useState<string | null>(null);
   const [showSecrets, setShowSecrets] = useState<Record<string, boolean>>({});
+  
+  // Modal states
+  const [showNewEnvModal, setShowNewEnvModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [envToDelete, setEnvToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     const savedEnvironments = localStorage.getItem('api-environments');
@@ -64,10 +70,7 @@ export function EnvironmentsPage() {
     localStorage.setItem('api-environments', JSON.stringify(newEnvironments));
   };
 
-  const createNewEnvironment = () => {
-    const name = prompt('Enter environment name:');
-    if (!name) return;
-
+  const createNewEnvironment = (name: string) => {
     const newEnv: Environment = {
       id: Date.now().toString(),
       name,
@@ -88,8 +91,14 @@ export function EnvironmentsPage() {
   };
 
   const deleteEnvironment = (envId: string) => {
-    if (confirm('Are you sure you want to delete this environment?')) {
-      saveEnvironments(environments.filter(env => env.id !== envId));
+    setEnvToDelete(envId);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDeleteEnvironment = () => {
+    if (envToDelete) {
+      saveEnvironments(environments.filter(env => env.id !== envToDelete));
+      setEnvToDelete(null);
     }
   };
 
@@ -149,7 +158,7 @@ export function EnvironmentsPage() {
           <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100">
             Environments
           </h1>
-          <Button variant="primary" onClick={createNewEnvironment}>
+          <Button variant="primary" onClick={() => setShowNewEnvModal(true)}>
             <Plus className="w-4 h-4 mr-2" />
             New Environment
           </Button>
@@ -317,7 +326,7 @@ export function EnvironmentsPage() {
           {environments.length === 0 && (
             <div 
               className="border-2 border-dashed border-neutral-300 dark:border-neutral-700 bg-transparent hover:border-primary-500 dark:hover:border-primary-500 transition-colors cursor-pointer rounded-lg p-4"
-              onClick={createNewEnvironment}
+              onClick={() => setShowNewEnvModal(true)}
             >
               <div className="flex flex-col items-center justify-center py-12 text-center">
                 <Globe className="w-12 h-12 text-neutral-400 dark:text-neutral-500 mb-4" />
@@ -332,6 +341,31 @@ export function EnvironmentsPage() {
           )}
         </div>
       </div>
+
+      {/* Modals */}
+      <InputModal
+        isOpen={showNewEnvModal}
+        onClose={() => setShowNewEnvModal(false)}
+        onSubmit={createNewEnvironment}
+        title="Create New Environment"
+        label="Environment Name"
+        placeholder="Enter environment name"
+        required
+      />
+
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        onClose={() => {
+          setShowDeleteModal(false);
+          setEnvToDelete(null);
+        }}
+        onConfirm={confirmDeleteEnvironment}
+        title="Delete Environment"
+        message="Are you sure you want to delete this environment? This action cannot be undone."
+        confirmText="Delete"
+        cancelText="Cancel"
+        variant="danger"
+      />
     </div>
   );
 }
