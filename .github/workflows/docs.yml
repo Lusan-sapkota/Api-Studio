@@ -3,12 +3,7 @@ name: Deploy Documentation
 on:
   push:
     branches:
-      - main
-    paths:
-      - 'src/**'
-      - 'mkdocs.yml'
-      - 'requirements-docs.txt'
-      - '.github/workflows/docs.yml'
+      - gh-pages
   workflow_dispatch:
 
 permissions:
