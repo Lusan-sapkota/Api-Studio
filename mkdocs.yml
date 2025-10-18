@@ -7,7 +7,7 @@ docs_dir: src
 
 repo_name: Lusan-sapkota/Api-Studio
 repo_url: https://github.com/Lusan-sapkota/Api-Studio
-edit_uri: edit/main/docs/
+edit_uri: edit/main/src/
 
 theme:
   name: material
