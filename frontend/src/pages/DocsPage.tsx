@@ -434,10 +434,57 @@ Authorization: Bearer YOUR_API_KEY
                                 <span className="text-sm">{response.description}</span>
                               </div>
                               {response.example && (
-                                <pre className="bg-neutral-50 dark:bg-neutral-900 p-3 rounded text-sm overflow-auto">
-                                  {JSON.stringify(JSON.parse(response.example), null, 2)}
-                                </pre>
+                                <div>
+                                  <h5 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Example Response:</h5>
+                                  <pre className="bg-neutral-50 dark:bg-neutral-900 p-3 rounded text-sm overflow-auto">
+                                    {typeof response.example === 'string' ? response.example : JSON.stringify(response.example, null, 2)}
+                                  </pre>
+                                </div>
                               )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {endpoint.examples.length > 0 && (
+                        <div className="mb-4">
+                          <h4 className="font-medium text-neutral-900 dark:text-neutral-100 mb-2">Full API Examples</h4>
+                          {endpoint.examples.map((example, index) => (
+                            <div key={index} className="mb-4 border border-neutral-200 dark:border-neutral-700 rounded">
+                              <div className="bg-neutral-50 dark:bg-neutral-800 px-3 py-2 border-b border-neutral-200 dark:border-neutral-700">
+                                <h5 className="font-medium text-sm">{example.name}</h5>
+                              </div>
+                              <div className="p-3">
+                                <div className="mb-3">
+                                  <h6 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Request:</h6>
+                                  <div className="bg-neutral-100 dark:bg-neutral-900 p-3 rounded text-sm">
+                                    <div className="mb-2">
+                                      <span className={`inline-block px-2 py-1 text-xs font-mono rounded mr-2 ${getMethodColor(endpoint.method)}`}>
+                                        {endpoint.method}
+                                      </span>
+                                      <code className="text-sm">{endpoint.path}</code>
+                                    </div>
+                                    {example.request.headers && Object.keys(example.request.headers).length > 0 && (
+                                      <div className="mb-2">
+                                        <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">Headers:</div>
+                                        <pre className="text-xs">{JSON.stringify(example.request.headers, null, 2)}</pre>
+                                      </div>
+                                    )}
+                                    {example.request.body && (
+                                      <div>
+                                        <div className="text-xs font-medium text-neutral-600 dark:text-neutral-400 mb-1">Body:</div>
+                                        <pre className="text-xs">{typeof example.request.body === 'string' ? example.request.body : JSON.stringify(example.request.body, null, 2)}</pre>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                                <div>
+                                  <h6 className="text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Response:</h6>
+                                  <pre className="bg-neutral-100 dark:bg-neutral-900 p-3 rounded text-sm overflow-auto">
+                                    {typeof example.response === 'string' ? example.response : JSON.stringify(example.response, null, 2)}
+                                  </pre>
+                                </div>
+                              </div>
                             </div>
                           ))}
                         </div>

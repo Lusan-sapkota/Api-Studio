@@ -16,6 +16,7 @@ function App() {
           <Route path="request" element={<RequestPage />} />
           <Route path="interceptor" element={<InterceptorPage />} />
           <Route path="collections" element={<CollectionsPage />} />
+          <Route path="collections/:collectionId" element={<CollectionsPage />} />
           <Route path="environments" element={<EnvironmentsPage />} />
           <Route path="history" element={<HistoryPage />} />
           <Route path="docs" element={<DocsPage />} />

@@ -63,13 +63,41 @@ npm run dev
 - Backend: http://localhost:8000
 - Frontend: http://localhost:5173
 
+## Features
+
+### Collections Management
+- **70-30 Rule Interface**: Click left 70% of collection items to expand/collapse, right 30% to open dedicated collection page
+- **Hierarchical Organization**: Support for folders within collections
+- **Smart Navigation**: Collections are now the third main menu item in the sidebar
+- **Full CRUD Operations**: Create, read, update, and delete collections and folders
+
+### Environment Variables
+- **Multiple Environments**: Support for Local, Production, and custom environments
+- **Custom Variables**: Users can add their own environment variables
+- **Secret Management**: Mark variables as secret with masked display
+- **Active Environment**: Set one environment as active across the workspace
+
+### Enhanced Documentation
+- **Full API Examples**: Complete request/response examples with headers and body
+- **Auto-generation**: Documentation automatically generated from API request history
+- **Custom Sections**: Add your own documentation sections with Markdown support
+- **Comprehensive Endpoints**: Full API endpoint documentation with parameters and responses
+
+### Backend Integration
+- **SQLModel Database**: Persistent storage for all collections, environments, and requests
+- **RESTful APIs**: Complete backend API for all frontend operations
+- **Environment Activation**: Backend support for activating/deactivating environments
+- **Folder Support**: Database models support hierarchical folder structures
+
 ## Roadmap
 
 - [x] Backend architecture setup
 - [x] Frontend layout with Tailwind
-- [ ] Request collections (In Progress)
+- [x] Request collections with 70-30 rule
+- [x] Enhanced environment variables
+- [x] Full API documentation
+- [x] Backend integration
 - [ ] Workspace management (In Progress)
-- [ ] Environment variables
 - [ ] Real-time docs engine
 - [ ] Auth & admin panel
 - [ ] Multi-protocol support

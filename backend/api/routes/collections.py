@@ -5,11 +5,20 @@ from core.database import get_session
 from db.models import Collection
 from pydantic import BaseModel
 
-# Placeholder schemas - in real implementation, create proper schemas
+# Enhanced schemas for collections
 class CollectionBase(BaseModel):
     name: str
     description: str = None
     workspace_id: int
+    folders: dict = {}
+
+class CollectionCreate(CollectionBase):
+    pass
+
+class CollectionUpdate(BaseModel):
+    name: str = None
+    description: str = None
+    folders: dict = None
 
 class CollectionResponse(CollectionBase):
     id: int
@@ -39,7 +48,7 @@ async def get_collection(collection_id: int, session: Session = Depends(get_sess
 
 
 @router.post("/", response_model=CollectionResponse)
-async def create_collection(collection_data: CollectionBase, session: Session = Depends(get_session)):
+async def create_collection(collection_data: CollectionCreate, session: Session = Depends(get_session)):
     collection = Collection(**collection_data.dict())
     session.add(collection)
     session.commit()
@@ -48,12 +57,15 @@ async def create_collection(collection_data: CollectionBase, session: Session = 
 
 
 @router.put("/{collection_id}", response_model=CollectionResponse)
-async def update_collection(collection_id: int, update_data: dict, session: Session = Depends(get_session)):
+async def update_collection(collection_id: int, update_data: CollectionUpdate, session: Session = Depends(get_session)):
     collection = session.get(Collection, collection_id)
     if not collection:
         raise HTTPException(status_code=404, detail="Collection not found")
-    for key, value in update_data.items():
+    
+    update_dict = update_data.dict(exclude_unset=True)
+    for key, value in update_dict.items():
         setattr(collection, key, value)
+    
     session.commit()
     session.refresh(collection)
     return collection

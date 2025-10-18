@@ -34,6 +34,7 @@ class Collection(BaseModel, table=True):
     name: str
     description: Optional[str] = None
     workspace_id: int = Field(foreign_key="workspace.id")
+    folders: Optional[Dict[str, Any]] = Field(default_factory=dict, sa_type=JSON)
 
     # Relationships
     workspace: Workspace = Relationship(back_populates="collections")
@@ -41,11 +42,17 @@ class Collection(BaseModel, table=True):
 
 
 class Request(BaseModel, table=True):
+    name: str
     method: str  # GET, POST, etc.
     url: str
-    headers: Optional[Dict[str, str]] = Field(default_factory=dict, sa_type=JSON)
+    headers: Optional[Dict[str, Any]] = Field(default_factory=dict, sa_type=JSON)
+    params: Optional[Dict[str, Any]] = Field(default_factory=dict, sa_type=JSON)
     body: Optional[str] = None
+    body_type: Optional[str] = Field(default="json")
+    auth_type: Optional[str] = Field(default="none")
+    auth_data: Optional[Dict[str, Any]] = Field(default_factory=dict, sa_type=JSON)
     collection_id: int = Field(foreign_key="collection.id")
+    folder_id: Optional[str] = None
 
     # Relationships
     collection: Collection = Relationship(back_populates="requests")
@@ -54,8 +61,10 @@ class Request(BaseModel, table=True):
 
 class Environment(BaseModel, table=True):
     name: str
-    variables: Dict[str, str] = Field(default_factory=dict, sa_type=JSON)
+    description: Optional[str] = None
+    variables: Dict[str, Any] = Field(default_factory=dict, sa_type=JSON)
     workspace_id: int = Field(foreign_key="workspace.id")
+    active: bool = Field(default=False)
 
     # Relationships
     workspace: Workspace = Relationship(back_populates="environments")

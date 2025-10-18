@@ -32,36 +32,25 @@ export function EnvironmentsPage() {
       // Default environments
       const defaultEnvs: Environment[] = [
         {
-          id: 'dev',
-          name: 'Development',
+          id: 'local',
+          name: 'Local',
           description: 'Local development environment',
           active: true,
           variables: [
             { key: 'BASE_URL', value: 'http://localhost:3000', enabled: true },
-            { key: 'API_KEY', value: 'dev_key_123', enabled: true, secret: true },
-            { key: 'TOKEN', value: 'dev_token_abc', enabled: true, secret: true }
+            { key: 'API_KEY', value: 'local_api_key', enabled: true, secret: true },
+            { key: 'TOKEN', value: 'local_token', enabled: true, secret: true }
           ]
         },
         {
-          id: 'staging',
-          name: 'Staging',
-          description: 'Staging environment for testing',
-          active: false,
-          variables: [
-            { key: 'BASE_URL', value: 'https://staging.api.example.com', enabled: true },
-            { key: 'API_KEY', value: 'staging_key_456', enabled: true, secret: true },
-            { key: 'TOKEN', value: 'staging_token_def', enabled: true, secret: true }
-          ]
-        },
-        {
-          id: 'prod',
+          id: 'production',
           name: 'Production',
           description: 'Production environment',
           active: false,
           variables: [
             { key: 'BASE_URL', value: 'https://api.example.com', enabled: true },
-            { key: 'API_KEY', value: 'prod_key_789', enabled: true, secret: true },
-            { key: 'TOKEN', value: 'prod_token_ghi', enabled: true, secret: true }
+            { key: 'API_KEY', value: 'prod_api_key', enabled: true, secret: true },
+            { key: 'TOKEN', value: 'prod_token', enabled: true, secret: true }
           ]
         }
       ];
@@ -84,11 +73,7 @@ export function EnvironmentsPage() {
       name,
       description: '',
       active: false,
-      variables: [
-        { key: 'BASE_URL', value: '', enabled: true },
-        { key: 'API_KEY', value: '', enabled: true, secret: true },
-        { key: 'TOKEN', value: '', enabled: true, secret: true }
-      ]
+      variables: []
     };
 
     saveEnvironments([...environments, newEnv]);
