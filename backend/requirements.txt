@@ -1,0 +1,28 @@
+# Core FastAPI dependencies - using latest versions with Python 3.13 support
+fastapi
+uvicorn[standard]
+python-multipart
+
+# Database
+sqlmodel
+alembic
+
+# HTTP client for API calls
+httpx
+
+# WebSocket support
+websockets
+
+# Email validation and SMTP
+pydantic
+email-validator
+
+# Authentication
+python-jose[cryptography]
+passlib[bcrypt]
+
+# Environment variables
+python-dotenv
+
+# Additional utilities
+typing-extensions
