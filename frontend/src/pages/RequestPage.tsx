@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Play, Plus, X, Clock, Search, Copy, Download } from 'lucide-react';
+import { Play, Plus, X, Clock, Search, Copy, Download, Save } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -89,6 +89,24 @@ export function RequestPage() {
   // Get current tab data
   const currentTab = apiRequestTabs.find(tab => tab.id === activeRequestTab) || apiRequestTabs[0];
   const { method, url, headers, params, body, bodyType, authType, authData, response } = currentTab;
+
+  // Environment variables support
+  const replaceEnvironmentVariables = (text: string): string => {
+    const environments = JSON.parse(localStorage.getItem('api-environments') || '[]');
+    const activeEnv = environments.find((env: any) => env.active);
+    
+    if (!activeEnv) return text;
+    
+    let result = text;
+    activeEnv.variables.forEach((variable: any) => {
+      if (variable.enabled) {
+        const regex = new RegExp(`{{${variable.key}}}`, 'g');
+        result = result.replace(regex, variable.value);
+      }
+    });
+    
+    return result;
+  };
 
   const requestTabs: Tab[] = [
     { id: 'params', title: 'Params' },
@@ -199,6 +217,35 @@ export function RequestPage() {
     setActiveRequestTab(newTabId);
   };
 
+  const saveToCollection = () => {
+    // Simple implementation - save to localStorage for now
+    const collections = JSON.parse(localStorage.getItem('api-collections') || '[]');
+    const requestName = prompt('Enter request name:') || `${method} ${url}`;
+    const collectionName = prompt('Enter collection name:') || 'Default Collection';
+    
+    let collection = collections.find((c: any) => c.name === collectionName);
+    if (!collection) {
+      collection = { id: Date.now(), name: collectionName, requests: [] };
+      collections.push(collection);
+    }
+    
+    collection.requests.push({
+      id: Date.now(),
+      name: requestName,
+      method: currentTab.method,
+      url: currentTab.url,
+      headers: currentTab.headers,
+      params: currentTab.params,
+      body: currentTab.body,
+      bodyType: currentTab.bodyType,
+      authType: currentTab.authType,
+      authData: currentTab.authData
+    });
+    
+    localStorage.setItem('api-collections', JSON.stringify(collections));
+    alert('Request saved to collection!');
+  };
+
   const addHeader = () => {
     const newHeaders = [...headers, { key: '', value: '', enabled: true }];
     updateCurrentTab({ headers: newHeaders });
@@ -250,7 +297,7 @@ export function RequestPage() {
     updateCurrentTab({ response: null });
 
     try {
-      const requestUrl = buildUrlWithParams();
+      const requestUrl = replaceEnvironmentVariables(buildUrlWithParams());
       const enabledHeaders = headers.filter(h => h.enabled && h.key.trim());
 
       // Add authentication headers
@@ -267,8 +314,14 @@ export function RequestPage() {
       const requestData = {
         method,
         url: requestUrl,
-        headers: { ...Object.fromEntries(enabledHeaders.map(h => [h.key, h.value])), ...authHeaders },
-        body: bodyType !== 'none' ? body : null
+        headers: { 
+          ...Object.fromEntries(enabledHeaders.map(h => [
+            replaceEnvironmentVariables(h.key), 
+            replaceEnvironmentVariables(h.value)
+          ])), 
+          ...authHeaders 
+        },
+        body: bodyType !== 'none' ? replaceEnvironmentVariables(body) : null
       };
 
       const startTime = Date.now();
@@ -490,6 +543,9 @@ export function RequestPage() {
               <Play className="w-4 h-4 mr-2" />
             )}
             Send
+          </Button>
+          <Button variant="secondary" onClick={() => saveToCollection()} title="Save to collection">
+            <Save className="w-4 h-4" />
           </Button>
           <Button variant="ghost" onClick={() => duplicateTab(activeRequestTab)} title="Duplicate tab">
             <Copy className="w-4 h-4" />
@@ -801,8 +857,8 @@ export function RequestPage() {
                   </div>
                   <div className="flex-1 p-4 overflow-auto">
                     {responseTab === 'body' && (
-                      <div className="font-mono text-sm">
-                        <pre className="whitespace-pre-wrap text-neutral-900 dark:text-neutral-100">
+                      <div className="font-mono text-sm max-h-96 overflow-auto">
+                        <pre className="whitespace-pre-wrap text-neutral-900 dark:text-neutral-100 p-3 bg-neutral-50 dark:bg-neutral-900 rounded border">
                           {highlightSearchText(formatResponseBody(response.body), responseSearch)}
                         </pre>
                       </div>

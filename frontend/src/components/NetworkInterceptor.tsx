@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Globe, Clock, CheckCircle, XCircle, Search, Filter, X, Eye } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Globe, Search, X } from 'lucide-react';
 import { Button } from './Button';
 import { Input } from './Input';
 import { Card } from './Card';
@@ -44,26 +44,26 @@ export function NetworkInterceptor({ isActive, onToggle, targetUrl = '', onTarge
     const originalXHRSend = XMLHttpRequest.prototype.send;
 
     // Intercept fetch requests
-    window.fetch = async function(input: RequestInfo | URL, init?: RequestInit) {
+    window.fetch = async function (input: RequestInfo | URL, init?: RequestInit) {
       const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
       const method = init?.method || 'GET';
-      
+
       // Check if URL matches target (if specified)
       if (targetUrl && !url.includes(targetUrl)) {
         return originalFetch(input, init);
       }
 
       const startTime = Date.now();
-      
+
       try {
         const response = await originalFetch(input, init);
         const endTime = Date.now();
         const responseTime = endTime - startTime;
-        
+
         // Clone response to read body without consuming it
         const responseClone = response.clone();
         const responseBody = await responseClone.text();
-        
+
         const networkRequest: NetworkRequest = {
           id: `fetch-${Date.now()}-${Math.random()}`,
           method: method.toUpperCase(),
@@ -81,12 +81,12 @@ export function NetworkInterceptor({ isActive, onToggle, targetUrl = '', onTarge
         };
 
         setRequests(prev => [networkRequest, ...prev.slice(0, 99)]); // Keep last 100 requests
-        
+
         return response;
       } catch (error) {
         const endTime = Date.now();
         const responseTime = endTime - startTime;
-        
+
         const networkRequest: NetworkRequest = {
           id: `fetch-error-${Date.now()}-${Math.random()}`,
           method: method.toUpperCase(),
@@ -109,12 +109,12 @@ export function NetworkInterceptor({ isActive, onToggle, targetUrl = '', onTarge
     };
 
     // Intercept XMLHttpRequest
-    XMLHttpRequest.prototype.open = function(method: string, url: string | URL, ...args: any[]) {
+    XMLHttpRequest.prototype.open = function (method: string, url: string | URL, async?: boolean, user?: string | null, password?: string | null) {
       const urlString = typeof url === 'string' ? url : url.href;
-      
+
       // Check if URL matches target (if specified)
       if (targetUrl && !urlString.includes(targetUrl)) {
-        return originalXHROpen.call(this, method, url, ...args);
+        return originalXHROpen.call(this, method, url, async ?? true, user ?? null, password ?? null);
       }
 
       (this as any)._intercepted = {
@@ -125,27 +125,27 @@ export function NetworkInterceptor({ isActive, onToggle, targetUrl = '', onTarge
       };
 
       const originalSetRequestHeader = this.setRequestHeader;
-      this.setRequestHeader = function(name: string, value: string) {
+      this.setRequestHeader = function (name: string, value: string) {
         if ((this as any)._intercepted) {
           (this as any)._intercepted.requestHeaders[name] = value;
         }
         return originalSetRequestHeader.call(this, name, value);
       };
 
-      return originalXHROpen.call(this, method, url, ...args);
+      return originalXHROpen.call(this, method, url, async ?? true, user ?? null, password ?? null);
     };
 
-    XMLHttpRequest.prototype.send = function(body?: Document | XMLHttpRequestBodyInit | null) {
+    XMLHttpRequest.prototype.send = function (body?: Document | XMLHttpRequestBodyInit | null) {
       if ((this as any)._intercepted) {
         (this as any)._intercepted.startTime = Date.now();
         (this as any)._intercepted.requestBody = body ? String(body) : undefined;
 
         const originalOnReadyStateChange = this.onreadystatechange;
-        this.onreadystatechange = function() {
+        this.onreadystatechange = function () {
           if (this.readyState === 4 && (this as any)._intercepted) {
             const endTime = Date.now();
             const responseTime = endTime - (this as any)._intercepted.startTime;
-            
+
             const networkRequest: NetworkRequest = {
               id: `xhr-${Date.now()}-${Math.random()}`,
               method: (this as any)._intercepted.method,
@@ -168,9 +168,9 @@ export function NetworkInterceptor({ isActive, onToggle, targetUrl = '', onTarge
 
             setRequests(prev => [networkRequest, ...prev.slice(0, 99)]);
           }
-          
+
           if (originalOnReadyStateChange) {
-            originalOnReadyStateChange.call(this);
+            originalOnReadyStateChange.call(this, new Event('readystatechange'));
           }
         };
       }
@@ -187,19 +187,19 @@ export function NetworkInterceptor({ isActive, onToggle, targetUrl = '', onTarge
   }, [isActive, targetUrl]);
 
   const filteredRequests = requests.filter(request => {
-    const matchesSearch = !searchTerm || 
+    const matchesSearch = !searchTerm ||
       request.url.toLowerCase().includes(searchTerm.toLowerCase()) ||
       request.method.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesStatus = statusFilter === 'all' || 
+
+    const matchesStatus = statusFilter === 'all' ||
       (statusFilter === '2xx' && request.status >= 200 && request.status < 300) ||
       (statusFilter === '3xx' && request.status >= 300 && request.status < 400) ||
       (statusFilter === '4xx' && request.status >= 400 && request.status < 500) ||
       (statusFilter === '5xx' && request.status >= 500) ||
       (statusFilter === 'error' && request.status === 0);
-    
+
     const matchesMethod = methodFilter === 'all' || request.method === methodFilter;
-    
+
     return matchesSearch && matchesStatus && matchesMethod;
   });
 
@@ -256,14 +256,28 @@ export function NetworkInterceptor({ isActive, onToggle, targetUrl = '', onTarge
             </span>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-3">
           <Input
-            placeholder="Target URL (optional)"
+            placeholder="Target URL to intercept (e.g., https://api.example.com)"
             value={targetUrl}
             onChange={(e) => onTargetUrlChange(e.target.value)}
             className="flex-1"
           />
+          <Button
+            variant="primary"
+            onClick={() => {
+              if (targetUrl) {
+                // Make a test request to the target URL to trigger interception
+                fetch(targetUrl, { method: 'GET' }).catch(() => {
+                  // Ignore errors, we just want to trigger the interceptor
+                });
+              }
+            }}
+            disabled={!targetUrl || !isActive}
+          >
+            Test URL
+          </Button>
         </div>
       </div>
 
@@ -318,20 +332,18 @@ export function NetworkInterceptor({ isActive, onToggle, targetUrl = '', onTarge
               {filteredRequests.map((request) => (
                 <div
                   key={request.id}
-                  className={`p-3 cursor-pointer hover:bg-surface-light dark:hover:bg-surface-dark ${
-                    selectedRequest?.id === request.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''
-                  }`}
+                  className={`p-3 cursor-pointer hover:bg-surface-light dark:hover:bg-surface-dark ${selectedRequest?.id === request.id ? 'bg-primary-50 dark:bg-primary-900/20' : ''
+                    }`}
                   onClick={() => setSelectedRequest(request)}
                 >
                   <div className="flex items-center justify-between mb-1">
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs px-2 py-1 rounded font-mono ${
-                        request.method === 'GET' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                      <span className={`text-xs px-2 py-1 rounded font-mono ${request.method === 'GET' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
                         request.method === 'POST' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
-                        request.method === 'PUT' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
-                        request.method === 'DELETE' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
-                        'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
-                      }`}>
+                          request.method === 'PUT' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                            request.method === 'DELETE' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                              'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+                        }`}>
                         {request.method}
                       </span>
                       <span className={`text-sm font-medium ${getStatusColor(request.status)}`}>

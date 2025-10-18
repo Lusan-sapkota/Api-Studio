@@ -9,6 +9,7 @@ A self-hosted, local-first alternative to Postman built for speed, privacy, and 
 Local API Workspace is a developer tool for API exploration, testing, and documentation. No cloud lock-in, no paywalls.
 
 **Key Features:**
+
 - Instant performance (no Electron or heavy UI)
 - Local-first architecture (data stays on your machine)
 - Real-time auto-generated documentation
@@ -25,18 +26,21 @@ project-root/
 ```
 
 **Tech Stack:**
-- **Backend:** FastAPI, SQLModel, WebSockets, JWT  
+
+- **Backend:** FastAPI, SQLModel, WebSockets, JWT
 - **Frontend:** React, TypeScript, TailwindCSS, Vite
 
 ## Setup
 
 ### Prerequisites
+
 - Python 3.10+
 - Node.js 18+
 
 ### Installation
 
 **Backend:**
+
 ```bash
 cd backend
 python -m venv venv
@@ -47,6 +51,7 @@ uvicorn main:app --reload
 ```
 
 **Frontend:**
+
 ```bash
 cd frontend
 npm install
@@ -54,7 +59,8 @@ npm run dev
 ```
 
 **Local URLs:**
-- Backend: http://localhost:8000  
+
+- Backend: http://localhost:8000
 - Frontend: http://localhost:5173
 
 ## Roadmap
@@ -74,6 +80,7 @@ npm run dev
 > "Developer tools shouldn't spy, stall, or sell you your own data."
 
 **Principles:**
+
 1. Local-first — No cloud dependency
 2. Fast-by-default — Built for speed
 3. Open and extensible — Customizable by anyone
@@ -88,4 +95,4 @@ This project is licensed under the GNU Affero General Public License v3.0 - see 
 
 ---
 
-*"If Postman was built like VS Code — lightweight, local, and lightning-fast."*
+_"If Postman was built like VS Code — lightweight, local, and lightning-fast."_
