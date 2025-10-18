@@ -92,4 +92,7 @@ instance/
 .webassets-cache
 
 # Notes
-.pnotes/*
+.pnotes
+
+# Github
+.github

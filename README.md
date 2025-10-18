@@ -77,9 +77,9 @@ npm run dev
 
 ### Access Points
 
-- **Frontend:** http://localhost:5173
-- **Backend API:** http://localhost:8000
-- **API Documentation:** http://localhost:8000/docs
+- **Frontend:** http://localhost:56173
+- **Backend API:** http://localhost:58123
+- **API Documentation:** http://localhost:58123/docs
 
 ## Features
 

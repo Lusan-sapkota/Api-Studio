@@ -43,7 +43,7 @@ export function EnvironmentsPage() {
           description: 'Local development environment',
           active: true,
           variables: [
-            { key: 'BASE_URL', value: 'http://localhost:3000', enabled: true },
+            { key: 'BASE_URL', value: 'http://localhost:56173', enabled: true },
             { key: 'API_KEY', value: 'local_api_key', enabled: true, secret: true },
             { key: 'TOKEN', value: 'local_token', enabled: true, secret: true }
           ]

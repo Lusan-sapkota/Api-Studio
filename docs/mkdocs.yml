@@ -1,0 +1,119 @@
+site_name: API Studio Documentation
+site_description: A self-hosted, local-first alternative to Postman built for speed, privacy, and real-time collaboration
+site_author: Lusan Sapkota
+site_url: https://lusan-sapkota.github.io/Api-Studio/
+
+docs_dir: src
+
+repo_name: Lusan-sapkota/Api-Studio
+repo_url: https://github.com/Lusan-sapkota/Api-Studio
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: assets/logo.png
+  favicon: assets/logo.png
+  palette:
+    # Palette toggle for light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    # Palette toggle for dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.path
+    - navigation.top
+    - search.highlight
+    - search.share
+    - toc.follow
+    - content.code.copy
+    - content.code.annotate
+    - content.tabs.link
+
+plugins:
+  - search
+  - git-revision-date-localized:
+      enable_creation_date: true
+  - minify:
+      minify_html: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - Home: index.md
+  - Getting Started:
+      - Installation: getting-started/installation.md
+      - Quick Start: getting-started/quick-start.md
+      - Configuration: getting-started/configuration.md
+  - API Clients:
+      - Overview: api-clients/overview.md
+      - REST Client: api-clients/rest-client.md
+      - GraphQL Studio: api-clients/graphql-studio.md
+      - WebSocket Playground: api-clients/websocket-playground.md
+      - gRPC Explorer: api-clients/grpc-explorer.md
+      - SMTP Tester: api-clients/smtp-tester.md
+  - Features:
+      - Collections: features/collections.md
+      - Environments: features/environments.md
+      - Notes & Tasks: features/notes-tasks.md
+      - Collaboration: features/collaboration.md
+      - Settings: features/settings.md
+  - API Reference:
+      - Backend APIs: api-reference/backend-apis.md
+      - WebSocket Events: api-reference/websocket-events.md
+  - Development:
+      - Architecture: development/architecture.md
+      - Contributing: development/contributing.md
+      - Roadmap: development/roadmap.md
+  - Support:
+      - FAQ: support/faq.md
+      - Troubleshooting: support/troubleshooting.md
+      - Contact: support/contact.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Lusan-sapkota/Api-Studio
+    - icon: fontawesome/solid/envelope
+      link: mailto:sapkotalusan@gmail.com
+    - icon: fontawesome/solid/globe
+      link: https://lusansapkota.com.np
+
+copyright: Copyright &copy; 2025 Lusan Sapkota. Licensed under AGPL-3.0.
