@@ -105,3 +105,34 @@ def delete_request(request_id: int, session: Session = Depends(get_session)):
     if not success:
         raise HTTPException(status_code=404, detail="Request not found")
     return {"message": "Request deleted"}
+
+
+class HistoryItem(BaseModel):
+    id: str
+    title: str
+    method: str
+    url: str
+    headers: List[dict] = []
+    params: List[dict] = []
+    body: str = ""
+    bodyType: str = "json"
+    authType: str = "none"
+    authData: dict = {}
+    response: dict = None
+    timestamp: str
+
+
+@router.post("/history", response_model=dict)
+async def save_to_history(history_item: HistoryItem):
+    """Save a request to history"""
+    # In a real app, you'd save this to a database
+    # For now, we'll just return success since the frontend handles localStorage
+    return {"message": "Request saved to history", "id": history_item.id}
+
+
+@router.get("/history", response_model=List[HistoryItem])
+async def get_history():
+    """Get request history"""
+    # In a real app, you'd fetch from database
+    # For now, return empty list since frontend uses localStorage
+    return []

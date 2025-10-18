@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AppLayout } from './layouts/AppLayout';
 import { RequestPage } from './pages/RequestPage';
+import { InterceptorPage } from './pages/InterceptorPage';
 import { CollectionsPage } from './pages/CollectionsPage';
 import { EnvironmentsPage } from './pages/EnvironmentsPage';
 import { HistoryPage } from './pages/HistoryPage';
@@ -13,6 +14,7 @@ function App() {
         <Route path="/" element={<AppLayout />}>
           <Route index element={<Navigate to="/collections" replace />} />
           <Route path="request" element={<RequestPage />} />
+          <Route path="interceptor" element={<InterceptorPage />} />
           <Route path="collections" element={<CollectionsPage />} />
           <Route path="environments" element={<EnvironmentsPage />} />
           <Route path="history" element={<HistoryPage />} />

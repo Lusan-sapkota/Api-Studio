@@ -5,3 +5,4 @@ export { Card } from './Card';
 export { Modal } from './Modal';
 export { Tabs } from './Tabs';
 export { SidebarItem } from './SidebarItem';
+export { NetworkInterceptor } from './NetworkInterceptor';

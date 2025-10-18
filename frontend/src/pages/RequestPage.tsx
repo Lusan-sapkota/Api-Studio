@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Play, Plus, X, Clock, CheckCircle, XCircle, Search, Copy, Download } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Play, Plus, X, Clock, Search, Copy, Download } from 'lucide-react';
 import { Panel, PanelGroup, PanelResizeHandle } from 'react-resizable-panels';
 import { Button } from '../components/Button';
 import { Input } from '../components/Input';
@@ -58,25 +58,8 @@ interface RequestTab {
 }
 
 export function RequestPage() {
-  const [method, setMethod] = useState('GET');
-  const [url, setUrl] = useState('');
   const [activeTab, setActiveTab] = useState('params');
   const [responseTab, setResponseTab] = useState('body');
-  const [headers, setHeaders] = useState<Header[]>([
-    { key: 'Content-Type', value: 'application/json', enabled: true }
-  ]);
-  const [params, setParams] = useState<Param[]>([]);
-  const [body, setBody] = useState('');
-  const [bodyType, setBodyType] = useState('json');
-  const [authType, setAuthType] = useState('none');
-  const [authData, setAuthData] = useState({
-    bearerToken: '',
-    basicUsername: '',
-    basicPassword: '',
-    apiKey: '',
-    apiKeyName: ''
-  });
-  const [response, setResponse] = useState<ResponseData | null>(null);
   const [loading, setLoading] = useState(false);
   const [responseSearch, setResponseSearch] = useState('');
   const [apiRequestTabs, setApiRequestTabs] = useState<RequestTab[]>([
@@ -101,6 +84,11 @@ export function RequestPage() {
     }
   ]);
   const [activeRequestTab, setActiveRequestTab] = useState('tab-1');
+  const [history, setHistory] = useState<RequestTab[]>([]);
+
+  // Get current tab data
+  const currentTab = apiRequestTabs.find(tab => tab.id === activeRequestTab) || apiRequestTabs[0];
+  const { method, url, headers, params, body, bodyType, authType, authData, response } = currentTab;
 
   const requestTabs: Tab[] = [
     { id: 'params', title: 'Params' },
@@ -109,32 +97,138 @@ export function RequestPage() {
     { id: 'auth', title: 'Authorization' },
   ];
 
+  // Load history from localStorage on mount
+  useEffect(() => {
+    const savedHistory = localStorage.getItem('api-history');
+    if (savedHistory) {
+      setHistory(JSON.parse(savedHistory));
+    }
+
+    // Check if we need to load a request from history
+    const loadRequest = sessionStorage.getItem('loadRequest');
+    if (loadRequest) {
+      try {
+        const requestData = JSON.parse(loadRequest);
+        const newTabId = `tab-${Date.now()}`;
+        const newTab: RequestTab = {
+          ...requestData,
+          id: newTabId,
+        };
+        setApiRequestTabs(prev => [...prev, newTab]);
+        setActiveRequestTab(newTabId);
+        sessionStorage.removeItem('loadRequest');
+      } catch (error) {
+        console.error('Failed to load request from history:', error);
+      }
+    }
+  }, []);
+
+  // Save history to localStorage
+  const saveToHistory = (requestData: RequestTab) => {
+    const historyItem = {
+      ...requestData,
+      id: `history-${Date.now()}`,
+      title: `${requestData.method} ${requestData.url}`,
+      timestamp: new Date().toISOString(),
+    };
+    const newHistory = [historyItem, ...history.slice(0, 49)]; // Keep last 50 requests
+    setHistory(newHistory);
+    localStorage.setItem('api-history', JSON.stringify(newHistory));
+  };
+
+  // Tab management functions
+  const addNewTab = () => {
+    const newTabId = `tab-${Date.now()}`;
+    const newTab: RequestTab = {
+      id: newTabId,
+      title: 'New Request',
+      method: 'GET',
+      url: '',
+      headers: [{ key: 'Content-Type', value: 'application/json', enabled: true }],
+      params: [],
+      body: '',
+      bodyType: 'json',
+      authType: 'none',
+      authData: {
+        bearerToken: '',
+        basicUsername: '',
+        basicPassword: '',
+        apiKey: '',
+        apiKeyName: ''
+      },
+      response: null
+    };
+    setApiRequestTabs([...apiRequestTabs, newTab]);
+    setActiveRequestTab(newTabId);
+  };
+
+  const closeTab = (tabId: string) => {
+    if (apiRequestTabs.length === 1) return; // Don't close the last tab
+    
+    const newTabs = apiRequestTabs.filter(tab => tab.id !== tabId);
+    setApiRequestTabs(newTabs);
+    
+    if (activeRequestTab === tabId) {
+      setActiveRequestTab(newTabs[0].id);
+    }
+  };
+
+  const updateCurrentTab = (updates: Partial<RequestTab>) => {
+    setApiRequestTabs(tabs => 
+      tabs.map(tab => 
+        tab.id === activeRequestTab 
+          ? { ...tab, ...updates }
+          : tab
+      )
+    );
+  };
+
+  const duplicateTab = (tabId: string) => {
+    const tabToDuplicate = apiRequestTabs.find(tab => tab.id === tabId);
+    if (!tabToDuplicate) return;
+
+    const newTabId = `tab-${Date.now()}`;
+    const duplicatedTab: RequestTab = {
+      ...tabToDuplicate,
+      id: newTabId,
+      title: `${tabToDuplicate.title} (Copy)`,
+      response: null
+    };
+    
+    setApiRequestTabs([...apiRequestTabs, duplicatedTab]);
+    setActiveRequestTab(newTabId);
+  };
+
   const addHeader = () => {
-    setHeaders([...headers, { key: '', value: '', enabled: true }]);
+    const newHeaders = [...headers, { key: '', value: '', enabled: true }];
+    updateCurrentTab({ headers: newHeaders });
   };
 
   const updateHeader = (index: number, field: keyof Header, value: string | boolean) => {
     const newHeaders = [...headers];
     newHeaders[index] = { ...newHeaders[index], [field]: value };
-    setHeaders(newHeaders);
+    updateCurrentTab({ headers: newHeaders });
   };
 
   const removeHeader = (index: number) => {
-    setHeaders(headers.filter((_, i) => i !== index));
+    const newHeaders = headers.filter((_, i) => i !== index);
+    updateCurrentTab({ headers: newHeaders });
   };
 
   const addParam = () => {
-    setParams([...params, { key: '', value: '', enabled: true }]);
+    const newParams = [...params, { key: '', value: '', enabled: true }];
+    updateCurrentTab({ params: newParams });
   };
 
   const updateParam = (index: number, field: keyof Param, value: string | boolean) => {
     const newParams = [...params];
     newParams[index] = { ...newParams[index], [field]: value };
-    setParams(newParams);
+    updateCurrentTab({ params: newParams });
   };
 
   const removeParam = (index: number) => {
-    setParams(params.filter((_, i) => i !== index));
+    const newParams = params.filter((_, i) => i !== index);
+    updateCurrentTab({ params: newParams });
   };
 
   const buildUrlWithParams = () => {
@@ -153,7 +247,7 @@ export function RequestPage() {
     if (!url.trim()) return;
 
     setLoading(true);
-    setResponse(null);
+    updateCurrentTab({ response: null });
 
     try {
       const requestUrl = buildUrlWithParams();
@@ -189,36 +283,51 @@ export function RequestPage() {
       const endTime = Date.now();
       const responseTime = endTime - startTime;
 
+      let responseData: ResponseData;
       if (res.ok) {
         const data = await res.json();
-        setResponse({
+        responseData = {
           status: data.status_code,
           statusText: getStatusText(data.status_code),
           headers: data.headers,
           body: data.body,
           responseTime,
           size: new Blob([data.body]).size
-        });
+        };
       } else {
         const errorData = await res.json();
-        setResponse({
+        responseData = {
           status: res.status,
           statusText: errorData.detail || 'Request failed',
           headers: {},
           body: errorData.detail || 'Request failed',
           responseTime,
           size: 0
-        });
+        };
       }
+
+      // Update current tab with response
+      updateCurrentTab({ response: responseData });
+      
+      // Save to history
+      saveToHistory({ ...currentTab, response: responseData });
+      
+      // Update tab title if it's still "New Request"
+      if (currentTab.title === 'New Request' && url) {
+        const title = url.length > 30 ? `${method} ${url.substring(0, 30)}...` : `${method} ${url}`;
+        updateCurrentTab({ title });
+      }
+
     } catch (error) {
-      setResponse({
+      const errorResponse: ResponseData = {
         status: 0,
         statusText: 'Network Error',
         headers: {},
         body: error instanceof Error ? error.message : 'Unknown error',
         responseTime: 0,
         size: 0
-      });
+      };
+      updateCurrentTab({ response: errorResponse });
     } finally {
       setLoading(false);
     }
@@ -255,14 +364,7 @@ export function RequestPage() {
     }
   };
 
-  const isJsonResponse = (body: string): boolean => {
-    try {
-      JSON.parse(body);
-      return true;
-    } catch {
-      return false;
-    }
-  };
+
 
   const highlightSearchText = (text: string, searchTerm: string): React.ReactNode => {
     if (!searchTerm.trim()) return text;
@@ -303,6 +405,61 @@ export function RequestPage() {
 
   return (
     <PanelGroup direction="vertical" className="h-full flex flex-col">
+      {/* Request Tabs */}
+      <div className="border-b border-neutral-200 dark:border-neutral-800 bg-surface-light dark:bg-surface-dark">
+        <div className="flex items-center overflow-x-auto">
+          {apiRequestTabs.map((tab) => (
+            <div
+              key={tab.id}
+              className={`flex items-center gap-2 px-4 py-2 border-r border-neutral-200 dark:border-neutral-800 cursor-pointer min-w-0 ${
+                activeRequestTab === tab.id
+                  ? 'bg-background-light dark:bg-background-dark border-b-2 border-primary-500'
+                  : 'hover:bg-surface-dark/50 dark:hover:bg-surface-darker'
+              }`}
+              onClick={() => setActiveRequestTab(tab.id)}
+            >
+              <span className={`text-xs px-1.5 py-0.5 rounded font-mono ${
+                tab.method === 'GET' ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200' :
+                tab.method === 'POST' ? 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200' :
+                tab.method === 'PUT' ? 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200' :
+                tab.method === 'DELETE' ? 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200' :
+                'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200'
+              }`}>
+                {tab.method}
+              </span>
+              <span className="text-sm text-neutral-900 dark:text-neutral-100 truncate max-w-32">
+                {tab.title}
+              </span>
+              {tab.response && (
+                <div className={`w-2 h-2 rounded-full ${
+                  tab.response.status >= 200 && tab.response.status < 300 ? 'bg-green-500' :
+                  tab.response.status >= 400 ? 'bg-red-500' : 'bg-yellow-500'
+                }`} />
+              )}
+              {apiRequestTabs.length > 1 && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    closeTab(tab.id);
+                  }}
+                  className="p-1 hover:bg-neutral-200 dark:hover:bg-neutral-700 rounded"
+                >
+                  <X className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+          ))}
+          <button
+            onClick={addNewTab}
+            className="flex items-center gap-1 px-3 py-2 text-sm text-neutral-600 dark:text-neutral-400 hover:bg-surface-dark/50 dark:hover:bg-surface-darker"
+          >
+            <Plus className="w-4 h-4" />
+            New
+          </button>
+        </div>
+      </div>
+
+      {/* Request URL Bar */}
       <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
         <div className="flex items-center gap-3">
           <div className="w-32">
@@ -317,13 +474,13 @@ export function RequestPage() {
                 { value: 'OPTIONS', label: 'OPTIONS' },
               ]}
               value={method}
-              onChange={(e) => setMethod(e.target.value)}
+              onChange={(e) => updateCurrentTab({ method: e.target.value })}
             />
           </div>
           <Input
             placeholder="Enter request URL"
             value={url}
-            onChange={(e) => setUrl(e.target.value)}
+            onChange={(e) => updateCurrentTab({ url: e.target.value })}
             className="flex-1"
           />
           <Button variant="primary" onClick={sendRequest} disabled={loading}>
@@ -333,6 +490,9 @@ export function RequestPage() {
               <Play className="w-4 h-4 mr-2" />
             )}
             Send
+          </Button>
+          <Button variant="ghost" onClick={() => duplicateTab(activeRequestTab)} title="Duplicate tab">
+            <Copy className="w-4 h-4" />
           </Button>
         </div>
       </div>
@@ -451,7 +611,7 @@ export function RequestPage() {
                     { value: 'text', label: 'Text' },
                   ]}
                   value={bodyType}
-                  onChange={(e) => setBodyType(e.target.value)}
+                  onChange={(e) => updateCurrentTab({ bodyType: e.target.value })}
                 />
                 {bodyType !== 'none' && (
                   <textarea
@@ -464,7 +624,7 @@ export function RequestPage() {
                       'Enter request body'
                     }
                     value={body}
-                    onChange={(e) => setBody(e.target.value)}
+                    onChange={(e) => updateCurrentTab({ body: e.target.value })}
                   />
                 )}
               </div>
@@ -485,7 +645,7 @@ export function RequestPage() {
                     { value: 'apikey', label: 'API Key' },
                   ]}
                   value={authType}
-                  onChange={(e) => setAuthType(e.target.value)}
+                  onChange={(e) => updateCurrentTab({ authType: e.target.value })}
                 />
                 
                 {authType === 'bearer' && (
@@ -497,7 +657,7 @@ export function RequestPage() {
                       type="password"
                       placeholder="Enter bearer token"
                       value={authData.bearerToken}
-                      onChange={(e) => setAuthData({...authData, bearerToken: e.target.value})}
+                      onChange={(e) => updateCurrentTab({ authData: {...authData, bearerToken: e.target.value} })}
                     />
                   </div>
                 )}
@@ -511,7 +671,7 @@ export function RequestPage() {
                       <Input
                         placeholder="Enter username"
                         value={authData.basicUsername}
-                        onChange={(e) => setAuthData({...authData, basicUsername: e.target.value})}
+                        onChange={(e) => updateCurrentTab({ authData: {...authData, basicUsername: e.target.value} })}
                       />
                     </div>
                     <div>
@@ -522,7 +682,7 @@ export function RequestPage() {
                         type="password"
                         placeholder="Enter password"
                         value={authData.basicPassword}
-                        onChange={(e) => setAuthData({...authData, basicPassword: e.target.value})}
+                        onChange={(e) => updateCurrentTab({ authData: {...authData, basicPassword: e.target.value} })}
                       />
                     </div>
                   </div>
@@ -537,7 +697,7 @@ export function RequestPage() {
                       <Input
                         placeholder="Enter API key name"
                         value={authData.apiKeyName}
-                        onChange={(e) => setAuthData({...authData, apiKeyName: e.target.value})}
+                        onChange={(e) => updateCurrentTab({ authData: {...authData, apiKeyName: e.target.value} })}
                       />
                     </div>
                     <div>
@@ -548,7 +708,7 @@ export function RequestPage() {
                         type="password"
                         placeholder="Enter API key value"
                         value={authData.apiKey}
-                        onChange={(e) => setAuthData({...authData, apiKey: e.target.value})}
+                        onChange={(e) => updateCurrentTab({ authData: {...authData, apiKey: e.target.value} })}
                       />
                     </div>
                     <div className="flex items-center gap-2">
