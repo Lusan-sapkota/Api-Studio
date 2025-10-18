@@ -2,6 +2,7 @@ site_name: API Studio Documentation
 site_description: A self-hosted, local-first alternative to Postman built for speed, privacy, and real-time collaboration
 site_author: Lusan Sapkota
 site_url: https://lusan-sapkota.github.io/Api-Studio/
+use_directory_urls: true
 
 docs_dir: src
 

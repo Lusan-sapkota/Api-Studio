@@ -10,3 +10,6 @@ __pycache__
 .vscode-test-workspace
 .vscode-test-workspace
 .vscode-test-workspace
+
+# MkDocs build output
+site/
