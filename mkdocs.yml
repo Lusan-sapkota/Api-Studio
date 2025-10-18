@@ -109,7 +109,7 @@ nav:
       - Contact: support/contact.md
 
 extra:
-  generator: false  # Don't show "Made with MkDocs" in footer
+  generator: false # Don't show "Made with MkDocs" in footer
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/Lusan-sapkota/Api-Studio
