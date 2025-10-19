@@ -210,7 +210,55 @@ class EmailService:
             inviter_name=inviter_name
         )
     
-    async def send_password_reset_confirmation(self, email: str, user_name: str = None) -> bool:
+    def send_password_reset_otp(self, email: str, otp: str) -> bool:
+        """
+        Send password reset OTP email synchronously.
+        
+        Args:
+            email: Recipient email address
+            otp: 6-digit OTP code
+            
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        try:
+            # Run async method synchronously
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(
+                self.send_otp(email, otp, 'password_reset')
+            )
+            loop.close()
+            return result
+        except Exception as e:
+            logger.error(f"Failed to send password reset OTP to {email}: {str(e)}")
+            return False
+    
+    def send_password_reset_confirmation(self, email: str, user_name: str = None) -> bool:
+        """
+        Send password reset confirmation email synchronously.
+        
+        Args:
+            email: Recipient email address
+            user_name: Optional user name for personalization
+            
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        try:
+            # Run async method synchronously
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(
+                self.send_password_reset_confirmation_async(email, user_name)
+            )
+            loop.close()
+            return result
+        except Exception as e:
+            logger.error(f"Failed to send password reset confirmation to {email}: {str(e)}")
+            return False
+
+    async def send_password_reset_confirmation_async(self, email: str, user_name: str = None) -> bool:
         """
         Send password reset confirmation email.
         
