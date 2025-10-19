@@ -10,3 +10,6 @@ export { default as ProtectedRoute } from './ProtectedRoute';
 
 // Auth components
 export * from './auth';
+
+// Admin components
+export * from './admin';
