@@ -210,7 +210,82 @@ class EmailService:
             inviter_name=inviter_name
         )
     
-    async def send_password_reset_confirmation(self, email: str, user_name: str = None) -> bool:
+    def send_invitation_email(self, email: str, role: str, otp_code: str, inviter_name: str, expires_at: datetime) -> bool:
+        """
+        Send invitation email synchronously.
+        
+        Args:
+            email: Recipient email address
+            role: User role (admin, editor, viewer)
+            otp_code: 6-digit OTP for invitation verification
+            inviter_name: Name of the person sending the invitation
+            expires_at: When the invitation expires
+            
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        try:
+            # Run async method synchronously
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(
+                self.send_invitation(email, role, otp_code, inviter_name)
+            )
+            loop.close()
+            return result
+        except Exception as e:
+            logger.error(f"Failed to send invitation email to {email}: {str(e)}")
+            return False
+    
+    def send_password_reset_otp(self, email: str, otp: str) -> bool:
+        """
+        Send password reset OTP email synchronously.
+        
+        Args:
+            email: Recipient email address
+            otp: 6-digit OTP code
+            
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        try:
+            # Run async method synchronously
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(
+                self.send_otp(email, otp, 'password_reset')
+            )
+            loop.close()
+            return result
+        except Exception as e:
+            logger.error(f"Failed to send password reset OTP to {email}: {str(e)}")
+            return False
+    
+    def send_password_reset_confirmation(self, email: str, user_name: str = None) -> bool:
+        """
+        Send password reset confirmation email synchronously.
+        
+        Args:
+            email: Recipient email address
+            user_name: Optional user name for personalization
+            
+        Returns:
+            True if email sent successfully, False otherwise
+        """
+        try:
+            # Run async method synchronously
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            result = loop.run_until_complete(
+                self.send_password_reset_confirmation_async(email, user_name)
+            )
+            loop.close()
+            return result
+        except Exception as e:
+            logger.error(f"Failed to send password reset confirmation to {email}: {str(e)}")
+            return False
+
+    async def send_password_reset_confirmation_async(self, email: str, user_name: str = None) -> bool:
         """
         Send password reset confirmation email.
         
