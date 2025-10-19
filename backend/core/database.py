@@ -16,3 +16,9 @@ def get_session():
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(bind=engine)
+
+
+def migrate_database():
+    """Run database migrations for authentication system."""
+    from db.migrate import run_migration
+    run_migration()

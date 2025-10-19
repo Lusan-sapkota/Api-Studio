@@ -1,28 +1,60 @@
-from fastapi import FastAPI, WebSocket
+from fastapi import FastAPI, WebSocket, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from contextlib import asynccontextmanager
 from core.database import create_db_and_tables
 from core.config import settings
 from db.seed import seed_database
 from core.database import get_session
+from core.config_validator import validate_and_log_config, ConfigurationError
+from core.middleware import AuthenticationMiddleware
 from api.routes import requests, collections, environments, workspaces, auth, docs, notes, tasks, websocket_client, graphql_client, grpc_client, smtp_client
 import os
+import logging
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
-    create_db_and_tables()
-    # Seed database
-    for session in get_session():
-        seed_database(session)
-        break
+    try:
+        logger.info("Starting API Studio Backend...")
+        
+        # Validate configuration
+        validation_result = validate_and_log_config()
+        app.state.config_validation = validation_result
+        
+        # Initialize database
+        create_db_and_tables()
+        
+        # Seed database
+        for session in get_session():
+            seed_database(session)
+            break
+        
+        logger.info("✅ Application startup complete")
+        
+    except ConfigurationError as e:
+        logger.error(f"❌ Startup failed: {str(e)}")
+        raise
+    except Exception as e:
+        logger.error(f"❌ Unexpected startup error: {str(e)}")
+        raise
+    
     yield
+    
     # Shutdown
+    logger.info("Shutting down API Studio Backend...")
     # Add cleanup logic here if needed
 
 
@@ -32,6 +64,9 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+# Authentication middleware (must be added before CORS)
+app.add_middleware(AuthenticationMiddleware, app_mode=settings.app_mode)
 
 # CORS
 app.add_middleware(
@@ -57,9 +92,52 @@ app.include_router(grpc_client.router)
 app.include_router(smtp_client.router)
 
 
+# Exception handlers
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc):
+    """Handle HTTP exceptions with consistent error format."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": "HTTP_ERROR",
+            "message": exc.detail,
+            "timestamp": "2025-10-19T12:00:00Z"  # In production, use datetime.utcnow().isoformat()
+        }
+    )
+
+
+@app.exception_handler(500)
+async def internal_server_error_handler(request, exc):
+    """Handle internal server errors."""
+    logger.error(f"Internal server error: {str(exc)}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": "INTERNAL_ERROR",
+            "message": "Internal server error",
+            "timestamp": "2025-10-19T12:00:00Z"
+        }
+    )
+
+
 @app.get("/")
 async def root():
     return {"message": "API Studio Backend"}
+
+
+@app.get("/api/health")
+async def health_check():
+    """Health check endpoint with configuration status."""
+    config_validation = getattr(app.state, 'config_validation', {})
+    
+    return {
+        "status": "healthy",
+        "mode": settings.app_mode,
+        "smtp_available": config_validation.get("smtp_available", False),
+        "warnings": config_validation.get("warnings", [])
+    }
 
 
 @app.websocket("/ws")
