@@ -49,6 +49,23 @@ export function ForgotPasswordPage() {
     try {
       const response = await apiService.forgotPassword({ email: email.trim() });
 
+      if (response.success === false && response.error) {
+        // Handle specific errors
+        if (response.error.includes('SYSTEM_LOCKED')) {
+          navigate('/bootstrap');
+          return;
+        }
+        
+        if (response.error.includes('SMTP not configured')) {
+          setError('Email service is not configured. Please contact your administrator.');
+          return;
+        }
+        
+        // For other errors, still show generic success message to prevent enumeration
+        setError('Unable to send reset code. Please try again later or contact support.');
+        return;
+      }
+
       // Always show success message to prevent email enumeration
       // The backend will return success even if the email doesn't exist
       setIsSubmitted(true);
@@ -65,7 +82,13 @@ export function ForgotPasswordPage() {
       }, 3000);
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      
+      if (errorMessage.includes('fetch')) {
+        setError('Unable to connect to the server. Please check your internet connection and try again.');
+      } else {
+        setError('Unable to send reset code. Please try again later.');
+      }
     } finally {
       setIsLoading(false);
     }

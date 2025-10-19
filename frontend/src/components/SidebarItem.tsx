@@ -16,7 +16,7 @@ export function SidebarItem({ icon: Icon, label, active, onClick, badge }: Sideb
       className={`w-full flex items-center gap-3 px-3 py-2 text-sm font-medium rounded transition-colors ${
         active
           ? 'bg-primary-500/10 text-primary-500 dark:bg-primary-500/20'
-          : 'text-neutral-600 dark:text-neutral-400 hover:bg-surface-dark/50 dark:hover:bg-surface-darker hover:text-neutral-900 dark:hover:text-neutral-200'
+          : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-surface-darker hover:text-neutral-900 dark:hover:text-neutral-200'
       }`}
     >
       <Icon className="w-5 h-5 flex-shrink-0" />

@@ -1,19 +1,20 @@
 import { useState, useEffect } from 'react';
-import { Settings, User, Users, Bell, Shield, Database, Palette, Globe, Save } from 'lucide-react';
+import { Settings, User, Users, Save } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';
 import { Select } from '../components/Select';
-import { Tabs, Tab } from '../components/Tabs';
+import { Tab } from '../components/Tabs';
+import { configService } from '../services/config';
+import { useTheme } from '../hooks/useTheme';
 
 interface UserSettings {
   theme: 'light' | 'dark' | 'system';
   language: string;
   timezone: string;
   notifications: {
+    web: boolean;
     email: boolean;
-    desktop: boolean;
-    sounds: boolean;
   };
   editor: {
     fontSize: number;
@@ -39,15 +40,15 @@ interface Collaborator {
 }
 
 export function SettingsPage() {
+  const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState('general');
   const [settings, setSettings] = useState<UserSettings>({
     theme: 'system',
     language: 'en',
     timezone: 'UTC',
     notifications: {
-      email: true,
-      desktop: true,
-      sounds: false
+      web: true,
+      email: true
     },
     editor: {
       fontSize: 14,
@@ -93,33 +94,55 @@ export function SettingsPage() {
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
 
-  const tabs: Tab[] = [
+  // Determine which tabs to show based on mode
+  const isLocalMode = configService.isLocalMode();
+  const isHostedMode = configService.isHostedMode();
+
+  const baseTabs: Tab[] = [
     { id: 'general', title: 'General' },
     { id: 'editor', title: 'Editor' },
     { id: 'api', title: 'API Settings' },
+  ];
+
+  const hostedTabs: Tab[] = [
     { id: 'notifications', title: 'Notifications' },
     { id: 'collaborators', title: 'Collaborators' },
     { id: 'security', title: 'Security' },
   ];
 
+  const tabs: Tab[] = isLocalMode ? baseTabs : [...baseTabs, ...hostedTabs];
+
   useEffect(() => {
     // Load settings from localStorage
     const savedSettings = localStorage.getItem('app-settings');
     if (savedSettings) {
-      setSettings({ ...settings, ...JSON.parse(savedSettings) });
+      const loadedSettings = JSON.parse(savedSettings);
+      setSettings(prev => ({ ...prev, ...loadedSettings }));
+      
+      // Sync theme with the actual theme hook
+      if (loadedSettings.theme && loadedSettings.theme !== theme) {
+        setTheme(loadedSettings.theme);
+      }
     }
-  }, []);
+    
+    // Initialize theme setting with current theme
+    setSettings(prev => ({ ...prev, theme }));
+  }, [theme, setTheme]);
 
   const saveSettings = () => {
     localStorage.setItem('app-settings', JSON.stringify(settings));
+    // Apply theme change immediately
+    if (settings.theme !== theme) {
+      setTheme(settings.theme);
+    }
     // Here you would also send to backend API
     console.log('Settings saved:', settings);
   };
 
-  const updateSettings = (section: keyof UserSettings, updates: any) => {
+  const updateSettings = (section: keyof UserSettings, updates: Partial<UserSettings[keyof UserSettings]>) => {
     setSettings(prev => ({
       ...prev,
-      [section]: { ...prev[section], ...updates }
+      [section]: { ...(prev[section] as object), ...(updates as object) }
     }));
   };
 
@@ -196,7 +219,7 @@ export function SettingsPage() {
                     className={`w-full text-left px-3 py-2 rounded text-sm transition-colors ${
                       activeTab === tab.id
                         ? 'bg-primary-500/10 text-primary-500 font-medium'
-                        : 'text-neutral-600 dark:text-neutral-400 hover:bg-surface-light dark:hover:bg-surface-dark'
+                        : 'text-neutral-600 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-surface-dark'
                     }`}
                   >
                     {tab.title}
@@ -206,7 +229,7 @@ export function SettingsPage() {
             </div>
           </div>
 
-          <div className="flex-1 p-6 overflow-auto">
+          <div className="flex-1 p-6 overflow-auto scrollbar-thin">
             {activeTab === 'general' && (
               <div className="space-y-6">
                 <Card>
@@ -222,7 +245,11 @@ export function SettingsPage() {
                         </label>
                         <Select
                           value={settings.theme}
-                          onChange={(e) => updateSettings('theme', e.target.value)}
+                          onChange={(e) => {
+                            const newTheme = e.target.value as 'light' | 'dark' | 'system';
+                            updateSettings('theme', newTheme);
+                            setTheme(newTheme); // Apply theme immediately
+                          }}
                           options={[
                             { value: 'light', label: 'Light' },
                             { value: 'dark', label: 'Dark' },
@@ -240,9 +267,6 @@ export function SettingsPage() {
                           onChange={(e) => updateSettings('language', e.target.value)}
                           options={[
                             { value: 'en', label: 'English' },
-                            { value: 'es', label: 'Spanish' },
-                            { value: 'fr', label: 'French' },
-                            { value: 'de', label: 'German' }
                           ]}
                         />
                       </div>
@@ -267,6 +291,36 @@ export function SettingsPage() {
                     </div>
                   </div>
                 </Card>
+
+                {/* Notifications for Local Mode */}
+                {isLocalMode && (
+                  <Card>
+                    <div className="p-6 space-y-4">
+                      <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100">
+                        Notifications
+                      </h3>
+                      
+                      <div className="space-y-3">
+                        <label className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            checked={settings.notifications.web}
+                            onChange={(e) => updateSettings('notifications', { web: e.target.checked })}
+                            className="rounded"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                              Enable notifications
+                            </span>
+                            <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                              Receive browser notifications for important updates and alerts
+                            </p>
+                          </div>
+                        </label>
+                      </div>
+                    </div>
+                  </Card>
+                )}
               </div>
             )}
 
@@ -390,7 +444,7 @@ export function SettingsPage() {
               </div>
             )}
 
-            {activeTab === 'notifications' && (
+            {activeTab === 'notifications' && isHostedMode && (
               <div className="space-y-6">
                 <Card>
                   <div className="p-6 space-y-4">
@@ -398,41 +452,39 @@ export function SettingsPage() {
                       Notification Preferences
                     </h3>
                     
-                    <div className="space-y-3">
-                      <label className="flex items-center gap-2">
+                    <div className="space-y-4">
+                      <label className="flex items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={settings.notifications.web}
+                          onChange={(e) => updateSettings('notifications', { web: e.target.checked })}
+                          className="rounded"
+                        />
+                        <div>
+                          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                            Web notifications
+                          </span>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                            Receive browser notifications for important updates
+                          </p>
+                        </div>
+                      </label>
+                      
+                      <label className="flex items-center gap-3">
                         <input
                           type="checkbox"
                           checked={settings.notifications.email}
                           onChange={(e) => updateSettings('notifications', { email: e.target.checked })}
                           className="rounded"
                         />
-                        <span className="text-sm text-neutral-700 dark:text-neutral-300">
-                          Email notifications
-                        </span>
-                      </label>
-                      
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={settings.notifications.desktop}
-                          onChange={(e) => updateSettings('notifications', { desktop: e.target.checked })}
-                          className="rounded"
-                        />
-                        <span className="text-sm text-neutral-700 dark:text-neutral-300">
-                          Desktop notifications
-                        </span>
-                      </label>
-                      
-                      <label className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          checked={settings.notifications.sounds}
-                          onChange={(e) => updateSettings('notifications', { sounds: e.target.checked })}
-                          className="rounded"
-                        />
-                        <span className="text-sm text-neutral-700 dark:text-neutral-300">
-                          Sound notifications
-                        </span>
+                        <div>
+                          <span className="text-sm font-medium text-neutral-700 dark:text-neutral-300">
+                            Email notifications
+                          </span>
+                          <p className="text-xs text-neutral-500 dark:text-neutral-400">
+                            Receive email alerts for team invitations and security updates
+                          </p>
+                        </div>
                       </label>
                     </div>
                   </div>
@@ -455,7 +507,7 @@ export function SettingsPage() {
                     </div>
 
                     {showInviteModal && (
-                      <div className="mb-4 p-4 bg-surface-light dark:bg-surface-dark rounded border">
+                      <div className="mb-4 p-4 bg-neutral-50 dark:bg-surface-dark rounded border border-neutral-200 dark:border-neutral-700">
                         <h4 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
                           Invite New Member
                         </h4>
@@ -487,7 +539,7 @@ export function SettingsPage() {
                     
                     <div className="space-y-3">
                       {collaborators.map((collaborator) => (
-                        <div key={collaborator.id} className="flex items-center justify-between p-3 bg-surface-light dark:bg-surface-dark rounded">
+                        <div key={collaborator.id} className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-surface-dark rounded border border-neutral-200 dark:border-neutral-700">
                           <div className="flex items-center gap-3">
                             <div className="relative">
                               <div className="w-10 h-10 bg-primary-500 rounded-full flex items-center justify-center text-white font-medium">
@@ -582,47 +634,49 @@ export function SettingsPage() {
         </div>
       </div>
 
-      {/* Collaborators Sidebar */}
-      <div className="w-80 border-l border-neutral-200 dark:border-neutral-800 bg-surface-light dark:bg-surface-dark">
-        <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
-          <div className="flex items-center gap-2">
-            <Users className="w-5 h-5 text-primary-500" />
-            <h2 className="font-semibold text-neutral-900 dark:text-neutral-100">
-              Active Collaborators
-            </h2>
+      {/* Collaborators Sidebar - Only in hosted mode */}
+      {isHostedMode && (
+        <div className="w-80 border-l border-neutral-200 dark:border-neutral-800 bg-neutral-50 dark:bg-surface-dark">
+          <div className="p-4 border-b border-neutral-200 dark:border-neutral-800">
+            <div className="flex items-center gap-2">
+              <Users className="w-5 h-5 text-primary-500" />
+              <h2 className="font-semibold text-neutral-900 dark:text-neutral-100">
+                Active Collaborators
+              </h2>
+            </div>
+          </div>
+          
+          <div className="p-4 space-y-3 overflow-auto scrollbar-thin">
+            {collaborators.filter(c => c.status !== 'offline').map((collaborator) => (
+              <div key={collaborator.id} className="flex items-center gap-3 p-2 rounded hover:bg-neutral-100 dark:hover:bg-surface-darker">
+                <div className="relative">
+                  <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
+                    {collaborator.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white dark:border-neutral-800 ${getStatusColor(collaborator.status)}`} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
+                    {collaborator.name}
+                  </div>
+                  <div className="text-xs text-neutral-500 dark:text-neutral-400 capitalize">
+                    {collaborator.status} • {collaborator.role}
+                  </div>
+                </div>
+              </div>
+            ))}
+            
+            {collaborators.filter(c => c.status !== 'offline').length === 0 && (
+              <div className="text-center py-8">
+                <User className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+                <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                  No active collaborators
+                </p>
+              </div>
+            )}
           </div>
         </div>
-        
-        <div className="p-4 space-y-3">
-          {collaborators.filter(c => c.status !== 'offline').map((collaborator) => (
-            <div key={collaborator.id} className="flex items-center gap-3 p-2 rounded hover:bg-surface-dark/50 dark:hover:bg-surface-darker">
-              <div className="relative">
-                <div className="w-8 h-8 bg-primary-500 rounded-full flex items-center justify-center text-white text-sm font-medium">
-                  {collaborator.name.charAt(0).toUpperCase()}
-                </div>
-                <div className={`absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full border border-white dark:border-neutral-800 ${getStatusColor(collaborator.status)}`} />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium text-neutral-900 dark:text-neutral-100 truncate">
-                  {collaborator.name}
-                </div>
-                <div className="text-xs text-neutral-500 dark:text-neutral-400 capitalize">
-                  {collaborator.status} • {collaborator.role}
-                </div>
-              </div>
-            </div>
-          ))}
-          
-          {collaborators.filter(c => c.status !== 'offline').length === 0 && (
-            <div className="text-center py-8">
-              <User className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
-              <p className="text-sm text-neutral-500 dark:text-neutral-400">
-                No active collaborators
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
+      )}
     </div>
   );
 }

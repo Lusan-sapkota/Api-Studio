@@ -94,7 +94,19 @@ class ApiService {
         ...options,
       });
 
-      const responseData = await response.json();
+      // Handle non-JSON responses (like 404 for SPA routing)
+      let responseData;
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        responseData = await response.json();
+      } else {
+        // For non-JSON responses, create a generic error structure
+        responseData = {
+          message: response.statusText || `HTTP ${response.status}`,
+          error: `HTTP_${response.status}`,
+          success: false
+        };
+      }
 
       if (!response.ok) {
         // Handle token expiry
@@ -102,6 +114,31 @@ class ApiService {
           this.setToken(null);
           // Redirect to login or emit event for auth context to handle
           window.dispatchEvent(new CustomEvent('auth:token-expired'));
+        }
+        
+        // Handle system locked (503) - redirect to bootstrap
+        if (response.status === 503) {
+          window.dispatchEvent(new CustomEvent('system:locked'));
+        }
+
+        // Handle rate limiting (429)
+        if (response.status === 429) {
+          window.dispatchEvent(new CustomEvent('security:alert', {
+            detail: {
+              type: 'rate-limit',
+              message: 'Too many requests. Please slow down and try again later.'
+            }
+          }));
+        }
+
+        // Handle suspicious activity (multiple failed attempts, etc.)
+        if (response.status === 423) { // Account locked
+          window.dispatchEvent(new CustomEvent('security:alert', {
+            detail: {
+              type: 'account-locked',
+              message: 'Account has been temporarily locked due to suspicious activity.'
+            }
+          }));
         }
         
         return { 
@@ -116,6 +153,14 @@ class ApiService {
       };
     } catch (error) {
       console.error('API request failed:', error);
+      
+      // Dispatch network error event for NetworkErrorHandler
+      if (error instanceof TypeError && error.message.includes('fetch')) {
+        window.dispatchEvent(new CustomEvent('network-error', {
+          detail: { message: 'Unable to connect to server' }
+        }));
+      }
+      
       return { 
         error: error instanceof Error ? error.message : 'Network error occurred',
         success: false 

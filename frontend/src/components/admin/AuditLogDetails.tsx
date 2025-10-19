@@ -1,5 +1,4 @@
-import React from 'react';
-import { FileText, User, Globe, Monitor, Calendar, Code, MapPin, Activity } from 'lucide-react';
+import { FileText, User, Globe, Calendar, Code, Activity } from 'lucide-react';
 import { Modal } from '../Modal';
 import { Card } from '../Card';
 

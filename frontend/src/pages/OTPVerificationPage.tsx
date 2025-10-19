@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { OTPInput } from '../components/auth/OTPInput';
 import { LoadingButton } from '../components/auth/LoadingSpinner';
@@ -21,8 +21,8 @@ export function OTPVerificationPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
-  const [email, setEmail] = useState(state?.email || '');
-  const [verificationType, setVerificationType] = useState<'bootstrap' | 'forgot-password' | 'invitation'>(
+  const [email] = useState(state?.email || '');
+  const [verificationType] = useState<'bootstrap' | 'forgot-password' | 'invitation'>(
     state?.type || 'bootstrap'
   );
 
@@ -83,7 +83,23 @@ export function OTPVerificationPage() {
       }
 
       if (response.success === false || response.error) {
-        setError(response.error || 'Verification failed');
+        // Handle specific error types
+        const errorMessage = response.error || 'Verification failed';
+        
+        if (errorMessage.includes('SYSTEM_LOCKED')) {
+          navigate('/bootstrap');
+          return;
+        }
+        
+        if (errorMessage.includes('expired')) {
+          setError('The verification code has expired. Please request a new one.');
+        } else if (errorMessage.includes('invalid') || errorMessage.includes('incorrect')) {
+          setError('Invalid verification code. Please check the code and try again.');
+        } else if (errorMessage.includes('used')) {
+          setError('This verification code has already been used. Please request a new one.');
+        } else {
+          setError(errorMessage);
+        }
         return;
       }
 
@@ -91,13 +107,13 @@ export function OTPVerificationPage() {
 
       // Navigate to next step after a short delay
       setTimeout(() => {
-        if (verificationType === 'bootstrap' && response.data?.temp_token) {
+        if (verificationType === 'bootstrap' && response.data && 'temp_token' in response.data) {
           // Store temp token for first-time setup
           sessionStorage.setItem('temp_token', response.data.temp_token);
-        } else if (verificationType === 'forgot-password' && response.data?.reset_token) {
+        } else if (verificationType === 'forgot-password' && response.data && 'reset_token' in response.data) {
           // Store reset token for password reset
           sessionStorage.setItem('reset_token', response.data.reset_token);
-        } else if (verificationType === 'invitation' && response.data?.temp_token) {
+        } else if (verificationType === 'invitation' && response.data && 'temp_token' in response.data && 'role' in response.data) {
           // Store temp token and role for collaborator setup
           sessionStorage.setItem('temp_token', response.data.temp_token);
           sessionStorage.setItem('user_role', response.data.role);
@@ -109,7 +125,13 @@ export function OTPVerificationPage() {
       }, 1500);
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      
+      if (errorMessage.includes('fetch')) {
+        setError('Unable to connect to the server. Please check your internet connection and try again.');
+      } else {
+        setError(errorMessage);
+      }
     } finally {
       setIsLoading(false);
     }

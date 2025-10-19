@@ -122,10 +122,27 @@ export function LoginPage() {
         setCurrentStep('2fa');
         setSuccess('Please enter your two-factor authentication code');
       } else {
-        setError(result.error || 'Login failed');
+        // Handle specific error types
+        const errorMessage = result.error || 'Login failed';
+        
+        if (errorMessage.includes('SYSTEM_LOCKED')) {
+          navigate('/bootstrap');
+          return;
+        }
+        
+        if (errorMessage.includes('Invalid credentials') || errorMessage.includes('User not found')) {
+          setError('Invalid email or password. Please check your credentials and try again.');
+        } else if (errorMessage.includes('Account locked')) {
+          setIsLocked(true);
+          setLockoutTime(Date.now() + 15 * 60 * 1000);
+          setError('Your account has been temporarily locked due to multiple failed login attempts.');
+        } else {
+          setError(errorMessage);
+        }
+        
         setLoginAttempts(prev => prev + 1);
         
-        // Lock account after 5 failed attempts
+        // Lock account after 5 failed attempts (client-side protection)
         if (loginAttempts >= 4) {
           setIsLocked(true);
           setLockoutTime(Date.now() + 15 * 60 * 1000); // 15 minutes
@@ -134,14 +151,21 @@ export function LoginPage() {
       }
 
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An unexpected error occurred');
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      
+      if (errorMessage.includes('fetch')) {
+        setError('Unable to connect to the server. Please check your internet connection and try again.');
+      } else {
+        setError(errorMessage);
+      }
+      
       setLoginAttempts(prev => prev + 1);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handle2faSubmit = async (code: string, isBackupCode: boolean = false) => {
+  const handle2faSubmit = async (code: string, _isBackupCode: boolean = false) => {
     setIsLoading(true);
     setError(null);
 

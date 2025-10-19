@@ -454,3 +454,19 @@ require_request_send = require_permission(Permission.SEND_REQUEST)
 # System permissions
 require_audit_view = require_permission(Permission.VIEW_AUDIT_LOGS)
 require_system_manage = require_permission(Permission.MANAGE_SYSTEM)
+
+# Basic authentication requirement (no specific permissions)
+def require_authenticated_user(request: Request) -> dict:
+    """
+    Require user to be authenticated (no specific permissions required).
+    
+    Args:
+        request: FastAPI request object
+        
+    Returns:
+        User data from JWT token
+        
+    Raises:
+        HTTPException: If user is not authenticated
+    """
+    return require_auth(request)

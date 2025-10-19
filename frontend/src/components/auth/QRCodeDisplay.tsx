@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ErrorMessage, SuccessMessage } from './ErrorMessage';
+import { useState } from 'react';
+import { SuccessMessage } from './ErrorMessage';
 
 interface QRCodeDisplayProps {
   qrCodeUrl: string;

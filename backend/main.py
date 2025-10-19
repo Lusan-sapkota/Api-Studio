@@ -63,24 +63,24 @@ async def lifespan(app: FastAPI):
         
         # Log startup completion with mode-specific info
         if settings.app_mode == "local":
-            logger.info("✅ Application startup complete - Local mode (no authentication)")
+            logger.info("Application startup complete - Local mode (no authentication)")
         else:
-            logger.info("✅ Application startup complete - Hosted mode (authentication enabled)")
+            logger.info("Application startup complete - Hosted mode (authentication enabled)")
             
             # Check if system needs bootstrap
             for session in get_session():
                 from api.services.bootstrap_service import bootstrap_service
                 if bootstrap_service.is_system_locked(session):
-                    logger.info("🔒 System is locked - bootstrap required to create first admin user")
+                    logger.info("System is locked - bootstrap required to create first admin user")
                 else:
-                    logger.info("🔓 System is unlocked - admin user exists")
+                    logger.info("System is unlocked - admin user exists")
                 break
         
     except ConfigurationError as e:
-        logger.error(f"❌ Startup failed: {str(e)}")
+        logger.error(f"Startup failed: {str(e)}")
         raise
     except Exception as e:
-        logger.error(f"❌ Unexpected startup error: {str(e)}")
+        logger.error(f"Unexpected startup error: {str(e)}")
         raise
     
     yield
@@ -315,6 +315,38 @@ async def system_status():
             status_code=500,
             detail="Failed to retrieve system status"
         )
+
+
+# SPA fallback route - this should be last to catch all unmatched routes
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Serve static files if they exist (for production builds)
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    """
+    Fallback route for SPA - returns 404 for API routes, 
+    but allows frontend routing for non-API paths.
+    """
+    # If it's an API route that doesn't exist, return 404
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+    
+    # For all other routes, let the frontend handle routing
+    # In production, this would serve index.html
+    # In development, we just return a JSON response indicating SPA routing
+    return JSONResponse(
+        status_code=200,
+        content={
+            "spa_route": True,
+            "path": full_path,
+            "message": "This route is handled by the frontend SPA"
+        }
+    )
 
 
 @app.websocket("/ws")

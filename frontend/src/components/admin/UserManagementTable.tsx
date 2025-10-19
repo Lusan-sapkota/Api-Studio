@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Users, Mail, Shield, Trash2, Edit3, MoreVertical, Clock, CheckCircle, XCircle } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Users, Mail, Shield, Trash2, Edit3, Clock, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from '../Button';
 import { Card } from '../Card';
 import { ConfirmModal } from '../Modal';
@@ -45,7 +45,13 @@ export function UserManagementTable({ onInviteUser, onViewUserDetails, onRefresh
         return;
       }
       
-      setUsers(response.data || []);
+      // Map backend user data to frontend user interface
+      const mappedUsers = (response.data || []).map((user: any) => ({
+        ...user,
+        status: user.status || 'active',
+        failed_login_attempts: user.failed_login_attempts || 0
+      }));
+      setUsers(mappedUsers);
     } catch (err) {
       setError('Failed to load users');
       console.error('Error loading users:', err);
@@ -132,27 +138,16 @@ export function UserManagementTable({ onInviteUser, onViewUserDetails, onRefresh
     }
   };
 
-  const getRoleColor = (role: string) => {
-    switch (role.toLowerCase()) {
-      case 'admin':
-        return 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200';
-      case 'editor':
-        return 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200';
-      case 'viewer':
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-      default:
-        return 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200';
-    }
-  };
+
 
   const getStatusIcon = (user: User) => {
     if (user.locked_until && new Date(user.locked_until) > new Date()) {
-      return <XCircle className="w-4 h-4 text-red-500" title="Account locked" />;
+      return <div title="Account locked"><XCircle className="w-4 h-4 text-red-500" /></div>;
     }
     if (user.status === 'active') {
-      return <CheckCircle className="w-4 h-4 text-green-500" title="Active" />;
+      return <div title="Active"><CheckCircle className="w-4 h-4 text-green-500" /></div>;
     }
-    return <Clock className="w-4 h-4 text-yellow-500" title="Pending" />;
+    return <div title="Pending"><Clock className="w-4 h-4 text-yellow-500" /></div>;
   };
 
   const formatLastLogin = (lastLogin?: string) => {
@@ -263,9 +258,9 @@ export function UserManagementTable({ onInviteUser, onViewUserDetails, onRefresh
                     <td className="py-3 px-4">
                       <div className="flex items-center gap-1">
                         {user.two_factor_enabled ? (
-                          <Shield className="w-4 h-4 text-green-500" title="2FA Enabled" />
+                          <div title="2FA Enabled"><Shield className="w-4 h-4 text-green-500" /></div>
                         ) : (
-                          <Shield className="w-4 h-4 text-gray-400" title="2FA Disabled" />
+                          <div title="2FA Disabled"><Shield className="w-4 h-4 text-gray-400" /></div>
                         )}
                         <span className="text-sm text-neutral-600 dark:text-neutral-400">
                           {user.two_factor_enabled ? 'Enabled' : 'Disabled'}

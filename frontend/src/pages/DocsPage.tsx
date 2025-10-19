@@ -324,7 +324,7 @@ Authorization: Bearer YOUR_API_KEY
                   {editingSection === section.id ? (
                     <div className="space-y-3">
                       <textarea
-                        className="w-full h-64 p-3 border border-neutral-300 dark:border-neutral-700 rounded font-mono text-sm"
+                        className="w-full h-64 p-3 bg-background-light dark:bg-background-dark border border-neutral-300 dark:border-neutral-700 rounded font-mono text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                         value={section.content}
                         onChange={(e) => updateSection(section.id, e.target.value)}
                       />
@@ -548,7 +548,7 @@ Authorization: Bearer YOUR_API_KEY
                         placeholder="Section title"
                       />
                       <textarea
-                        className="w-full h-64 p-3 border border-neutral-300 dark:border-neutral-700 rounded font-mono text-sm"
+                        className="w-full h-64 p-3 bg-background-light dark:bg-background-dark border border-neutral-300 dark:border-neutral-700 rounded font-mono text-sm text-neutral-900 dark:text-neutral-100 placeholder-neutral-400 dark:placeholder-neutral-500 focus:outline-none focus:ring-2 focus:ring-primary-500"
                         value={section.content}
                         onChange={(e) => updateSection(section.id, e.target.value)}
                         placeholder="Write your documentation in Markdown..."

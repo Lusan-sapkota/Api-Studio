@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { User, Mail, Shield, Clock, AlertTriangle, CheckCircle, XCircle, Calendar, Activity } from 'lucide-react';
+import { useState } from 'react';
+import { User, Shield, Clock, AlertTriangle, CheckCircle, XCircle, Calendar, Activity } from 'lucide-react';
 import { Modal } from '../Modal';
 import { Button } from '../Button';
 import { Card } from '../Card';

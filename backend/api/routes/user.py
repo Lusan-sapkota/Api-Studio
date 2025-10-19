@@ -12,7 +12,7 @@ from sqlmodel import Session, select
 
 from core.database import get_session
 from core.config import settings
-from core.rbac import require_authenticated_user
+from core.middleware import require_auth
 from core.jwt_service import jwt_service
 from core.password_service import password_service
 from core.two_factor_service import two_factor_service
@@ -80,7 +80,7 @@ class SecuritySettingsResponse(BaseModel):
 @router.get("/profile", response_model=UserProfileResponse)
 async def get_user_profile(
     session: Session = Depends(get_session),
-    current_user: dict = Depends(require_authenticated_user)
+    current_user: dict = Depends(require_auth)
 ):
     """
     Get current user profile information.
@@ -120,7 +120,7 @@ async def update_user_profile(
     update_data: UpdateProfileRequest,
     request: Request,
     session: Session = Depends(get_session),
-    current_user: dict = Depends(require_authenticated_user)
+    current_user: dict = Depends(require_auth)
 ):
     """
     Update user profile information.
@@ -197,7 +197,7 @@ async def change_password(
     password_data: ChangePasswordRequest,
     request: Request,
     session: Session = Depends(get_session),
-    current_user: dict = Depends(require_authenticated_user)
+    current_user: dict = Depends(require_auth)
 ):
     """
     Change user password.
@@ -272,7 +272,7 @@ async def change_password(
 @router.get("/security-settings", response_model=SecuritySettingsResponse)
 async def get_security_settings(
     session: Session = Depends(get_session),
-    current_user: dict = Depends(require_authenticated_user)
+    current_user: dict = Depends(require_auth)
 ):
     """
     Get user security settings and status.
@@ -315,7 +315,7 @@ async def get_security_settings(
 async def enable_2fa(
     request: Request,
     session: Session = Depends(get_session),
-    current_user: dict = Depends(require_authenticated_user)
+    current_user: dict = Depends(require_auth)
 ):
     """
     Enable 2FA for the user account.
@@ -372,7 +372,7 @@ async def verify_2fa_setup(
     verify_data: Verify2FARequest,
     request: Request,
     session: Session = Depends(get_session),
-    current_user: dict = Depends(require_authenticated_user)
+    current_user: dict = Depends(require_auth)
 ):
     """
     Verify and complete 2FA setup.
@@ -451,7 +451,7 @@ async def disable_2fa(
     disable_data: Disable2FARequest,
     request: Request,
     session: Session = Depends(get_session),
-    current_user: dict = Depends(require_authenticated_user)
+    current_user: dict = Depends(require_auth)
 ):
     """
     Disable 2FA for the user account.
@@ -536,7 +536,7 @@ async def disable_2fa(
 async def regenerate_backup_codes(
     request: Request,
     session: Session = Depends(get_session),
-    current_user: dict = Depends(require_authenticated_user)
+    current_user: dict = Depends(require_auth)
 ):
     """
     Regenerate backup codes for 2FA.
@@ -588,7 +588,7 @@ async def regenerate_backup_codes(
 @router.get("/sessions", response_model=UserSessionsResponse)
 async def get_user_sessions(
     session: Session = Depends(get_session),
-    current_user: dict = Depends(require_authenticated_user)
+    current_user: dict = Depends(require_auth)
 ):
     """
     Get user's active sessions.

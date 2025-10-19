@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { apiService } from '../services/api';
 import { configService } from '../services/config';
+import sessionService from '../services/sessionService';
 
 interface User {
   id: number;
@@ -121,6 +122,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setTokens(null);
       setUser(null);
       setLoading(false);
+      // Destroy session monitoring
+      sessionService.destroy();
     }
   };
 
@@ -157,9 +160,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Initialize authentication state on mount
   useEffect(() => {
     const initializeAuth = async () => {
-      // Skip authentication in local mode
+      // In local mode, set authenticated state without user
       if (configService.isLocalMode()) {
-        setLoading(false);
+        setState(prev => ({
+          ...prev,
+          isAuthenticated: true,
+          isLoading: false,
+          user: null
+        }));
         return;
       }
 
@@ -174,7 +182,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     initializeAuth();
   }, []);
 
-  // Listen for token expiry events
+  // Handle browser navigation events for SPA routing
+  useEffect(() => {
+    const handlePopState = () => {
+      // This ensures the auth context is aware of navigation changes
+      // and can handle authentication state properly
+      if (!configService.isLocalMode() && !state.isAuthenticated && !state.isLoading) {
+        const currentPath = window.location.pathname;
+        const publicPaths = ['/login', '/bootstrap', '/setup', '/verify-otp', '/forgot-password', '/reset-password', '/invitation', '/collaborator-setup'];
+        
+        if (!publicPaths.some(path => currentPath.startsWith(path))) {
+          // User is on a protected route without authentication
+          window.location.href = '/login';
+        }
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, [state.isAuthenticated, state.isLoading]);
+
+  // Listen for token expiry and system events
   useEffect(() => {
     const handleTokenExpired = () => {
       setTokens(null);
@@ -182,10 +210,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError('Your session has expired. Please log in again.');
     };
 
+    const handleSystemLocked = () => {
+      setTokens(null);
+      setUser(null);
+      // Redirect to bootstrap page
+      window.location.href = '/bootstrap';
+    };
+
     window.addEventListener('auth:token-expired', handleTokenExpired);
+    window.addEventListener('system:locked', handleSystemLocked);
 
     return () => {
       window.removeEventListener('auth:token-expired', handleTokenExpired);
+      window.removeEventListener('system:locked', handleSystemLocked);
     };
   }, []);
 
