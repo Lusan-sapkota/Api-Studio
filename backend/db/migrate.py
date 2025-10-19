@@ -48,18 +48,26 @@ def migrate_user_table():
                 ("status", "VARCHAR DEFAULT 'active'")
             ]
             
+            migration_needed = False
             for column_name, column_def in new_columns:
                 if not check_column_exists('user', column_name):
                     try:
                         session.execute(text(f"ALTER TABLE user ADD COLUMN {column_name} {column_def}"))
                         logger.info(f"Added column {column_name} to user table")
+                        migration_needed = True
                     except Exception as e:
                         logger.warning(f"Failed to add column {column_name}: {e}")
             
-            # Update existing users to have admin role if they were is_admin=True
-            if check_column_exists('user', 'is_admin') and check_column_exists('user', 'role'):
-                session.execute(text("UPDATE user SET role = 'admin' WHERE is_admin = TRUE"))
-                logger.info("Updated existing admin users with admin role")
+            # Update existing users to have proper roles and status
+            if migration_needed:
+                # Set default values for existing users
+                session.execute(text("UPDATE user SET role = 'admin' WHERE role IS NULL AND (is_admin = TRUE OR is_admin = 1)"))
+                session.execute(text("UPDATE user SET role = 'viewer' WHERE role IS NULL"))
+                session.execute(text("UPDATE user SET status = 'active' WHERE status IS NULL"))
+                session.execute(text("UPDATE user SET two_factor_enabled = FALSE WHERE two_factor_enabled IS NULL"))
+                session.execute(text("UPDATE user SET requires_password_change = FALSE WHERE requires_password_change IS NULL"))
+                session.execute(text("UPDATE user SET failed_login_attempts = 0 WHERE failed_login_attempts IS NULL"))
+                logger.info("Updated existing users with default authentication values")
             
             session.commit()
             logger.info("User table migration completed successfully")
@@ -97,6 +105,19 @@ def run_migration():
     except Exception as e:
         logger.error(f"Migration failed: {e}")
         raise
+
+
+def run_migration_safe():
+    """
+    Run migration with error handling suitable for application startup.
+    Returns True if successful, False if failed.
+    """
+    try:
+        run_migration()
+        return True
+    except Exception as e:
+        logger.error(f"Migration failed during startup: {e}")
+        return False
 
 
 if __name__ == "__main__":

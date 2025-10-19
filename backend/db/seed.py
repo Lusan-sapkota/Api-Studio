@@ -1,35 +1,127 @@
-from sqlmodel import Session
-from core.security import get_password_hash
+from sqlmodel import Session, select
+from core.password_service import password_service
 from core.config import settings
 from db.models import User, Workspace
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def seed_database(session: Session):
-    # Create admin user if credentials provided and in local mode
-    if settings.admin_username and settings.admin_password and settings.app_mode == "local":
-        admin_user = session.get(User, 1)
-        if not admin_user:
-            hashed_password = get_password_hash(settings.admin_password)
+    """
+    Seed database with initial data based on mode and configuration.
+    In hosted mode: Only creates data if system is not locked (admin exists)
+    In local mode: Creates admin user if credentials provided
+    """
+    
+    # Check if any admin users exist
+    admin_exists = session.exec(
+        select(User).where(User.role == "admin")
+    ).first() is not None
+    
+    if settings.app_mode == "local":
+        # Local mode: Create admin user if credentials provided and no admin exists
+        if settings.admin_username and settings.admin_password and not admin_exists:
+            logger.info("Creating admin user for local mode")
+            
+            hashed_password = password_service.hash_password(settings.admin_password)
             admin_user = User(
                 username=settings.admin_username,
                 email=f"{settings.admin_username}@example.com",
                 hashed_password=hashed_password,
-                is_admin=True,
-                name="Admin User",
+                name="Local Admin User",
                 role="admin",
-                status="active"
+                status="active",
+                two_factor_enabled=False,  # 2FA not required in local mode
+                requires_password_change=False
             )
             session.add(admin_user)
             session.commit()
             session.refresh(admin_user)
+            
+            logger.info(f"Created admin user: {admin_user.username}")
 
-            # Create default workspace
+            # Create default workspace for admin
+            create_default_workspace(session, admin_user)
+            
+        elif not settings.admin_username or not settings.admin_password:
+            logger.info("No admin credentials provided for local mode - skipping admin user creation")
+            
+    elif settings.app_mode == "hosted":
+        # Hosted mode: Only seed if admin exists (system not locked)
+        if admin_exists:
+            logger.info("Admin user exists - system is unlocked")
+            # Could add additional seeding logic here for hosted mode
+        else:
+            logger.info("No admin user exists - system is locked, awaiting bootstrap")
+    
+    # Add any additional seeding logic here
+    seed_development_data(session)
+
+
+def create_default_workspace(session: Session, user: User):
+    """Create a default workspace for a user."""
+    try:
+        # Check if user already has workspaces
+        existing_workspace = session.exec(
+            select(Workspace).where(Workspace.owner_id == user.id)
+        ).first()
+        
+        if not existing_workspace:
             default_workspace = Workspace(
                 name="Default Workspace",
-                description="Default workspace for API testing",
-                owner_id=admin_user.id
+                description="Default workspace for API testing and development",
+                owner_id=user.id
             )
             session.add(default_workspace)
             session.commit()
+            logger.info(f"Created default workspace for user: {user.username}")
+            
+    except Exception as e:
+        logger.error(f"Failed to create default workspace: {e}")
+        session.rollback()
 
-    # Add more seeding logic here as needed
+
+def seed_development_data(session: Session):
+    """
+    Seed additional development data if in development environment.
+    This can include sample collections, environments, etc.
+    """
+    
+    # Only seed development data in local mode or if explicitly enabled
+    if settings.app_mode == "local" and getattr(settings, 'seed_dev_data', False):
+        logger.info("Seeding development data...")
+        
+        # Add development seeding logic here
+        # For example: sample collections, environments, requests
+        
+        try:
+            # Example: Create sample data
+            pass
+            
+        except Exception as e:
+            logger.error(f"Failed to seed development data: {e}")
+            session.rollback()
+
+
+def check_bootstrap_state(session: Session) -> dict:
+    """
+    Check the bootstrap state of the system.
+    Returns information about system lock status and admin users.
+    """
+    
+    admin_count = session.exec(
+        select(User).where(User.role == "admin")
+    ).count() if session.exec(select(User)).first() else 0
+    
+    total_users = session.exec(select(User)).count() if session.exec(select(User)).first() else 0
+    
+    is_locked = admin_count == 0
+    
+    return {
+        "is_locked": is_locked,
+        "admin_count": admin_count,
+        "total_users": total_users,
+        "mode": settings.app_mode,
+        "bootstrap_available": bool(settings.admin_bootstrap_token) if settings.app_mode == "hosted" else False
+    }
