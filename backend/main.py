@@ -8,7 +8,7 @@ from db.seed import seed_database
 from core.database import get_session
 from core.config_validator import validate_and_log_config, ConfigurationError
 from core.middleware import AuthenticationMiddleware
-from api.routes import requests, collections, environments, workspaces, auth, docs, notes, tasks, websocket_client, graphql_client, grpc_client, smtp_client, bootstrap
+from api.routes import requests, collections, environments, workspaces, auth, docs, notes, tasks, websocket_client, graphql_client, grpc_client, smtp_client, bootstrap, admin
 import os
 import logging
 from dotenv import load_dotenv
@@ -84,6 +84,7 @@ app.include_router(collections.router)
 app.include_router(environments.router)
 app.include_router(workspaces.router)
 app.include_router(auth.router)
+app.include_router(admin.router)  # Admin routes for user management
 app.include_router(docs.router)
 app.include_router(notes.router)
 app.include_router(tasks.router)

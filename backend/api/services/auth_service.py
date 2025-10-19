@@ -47,7 +47,7 @@ class AuthService:
         """
         # Get user by email
         statement = select(User).where(User.email == email)
-        user = session.exec(statement).first()
+        user = session.execute(statement).scalar_one_or_none()
         
         if not user:
             # Log failed attempt
@@ -190,7 +190,7 @@ class AuthService:
             Always returns True to prevent email enumeration
         """
         statement = select(User).where(User.email == email)
-        user = session.exec(statement).first()
+        user = session.execute(statement).scalar_one_or_none()
         
         if user and user.status == "active":
             # Generate OTP
@@ -254,7 +254,7 @@ class AuthService:
         """
         # Get user
         statement = select(User).where(User.email == email)
-        user = session.exec(statement).first()
+        user = session.execute(statement).scalar_one_or_none()
         if not user or user.status != "active":
             return False, None
         
@@ -264,7 +264,7 @@ class AuthService:
             OTPCode.otp_type == "forgot_password",
             OTPCode.used == False
         ).order_by(OTPCode.created_at.desc())
-        otp_record = session.exec(statement).first()
+        otp_record = session.execute(statement).scalar_one_or_none()
         
         if not otp_record:
             AuthService._log_auth_event(

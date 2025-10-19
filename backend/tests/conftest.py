@@ -11,13 +11,15 @@ from core.config import Settings
 @pytest.fixture(name="session")
 def session_fixture():
     """Create a test database session."""
+    from sqlalchemy.orm import sessionmaker
     engine = create_engine(
         "sqlite:///:memory:",
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
     SQLModel.metadata.create_all(engine)
-    with Session(engine) as session:
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    with SessionLocal() as session:
         yield session
 
 

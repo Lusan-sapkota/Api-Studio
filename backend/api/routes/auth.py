@@ -11,7 +11,12 @@ from api.schemas.user_schemas import (
     ResetPasswordRequest, LoginResponse, AuthResponse, CurrentUserResponse,
     UserResponse
 )
+from api.schemas.admin_schemas import (
+    VerifyInvitationRequest, VerifyInvitationResponse,
+    CollaboratorSetPasswordRequest, CollaboratorSetPasswordResponse
+)
 from api.services.auth_service import auth_service
+from api.services.admin_service import admin_service
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -28,7 +33,7 @@ def get_current_user(request: Request, session: Session = Depends(get_session)) 
     # Skip authentication in local mode
     if settings.app_mode == "local":
         # In local mode, return a default admin user or create one
-        admin_user = session.exec(select(User).where(User.role == "admin")).first()
+        admin_user = session.execute(select(User).where(User.role == "admin")).scalar_one_or_none()
         if not admin_user:
             # Create default admin for local mode
             from core.password_service import password_service
@@ -313,4 +318,102 @@ def logout(
     return AuthResponse(
         success=True,
         message="Logged out successfully"
+    )
+
+
+@router.post("/verify-invitation", response_model=VerifyInvitationResponse)
+def verify_invitation(
+    request_data: VerifyInvitationRequest,
+    request: Request,
+    session: Session = Depends(get_session)
+):
+    """
+    Verify invitation OTP and receive setup token.
+    
+    - **email**: Email address from invitation
+    - **otp_code**: 6-digit OTP code from invitation email
+    """
+    if settings.app_mode == "local":
+        raise HTTPException(
+            status_code=400,
+            detail="Invitations are not available in local mode"
+        )
+    
+    ip_address, user_agent = get_client_info(request)
+    
+    success, setup_token, role, expires_at = admin_service.verify_invitation(
+        session=session,
+        email=request_data.email,
+        otp_code=request_data.otp_code,
+        ip_address=ip_address,
+        user_agent=user_agent
+    )
+    
+    if not success:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or expired invitation code"
+        )
+    
+    return VerifyInvitationResponse(
+        success=True,
+        message="Invitation verified successfully",
+        setup_token=setup_token,
+        role=role,
+        expires_at=expires_at
+    )
+
+
+@router.post("/collaborator/set-password", response_model=CollaboratorSetPasswordResponse)
+def set_collaborator_password(
+    request_data: CollaboratorSetPasswordRequest,
+    request: Request,
+    session: Session = Depends(get_session)
+):
+    """
+    Complete collaborator account setup with password and optional 2FA.
+    
+    - **password**: New password (must meet complexity requirements)
+    - **confirm_password**: Password confirmation
+    - **enable_2fa**: Whether to enable two-factor authentication
+    
+    Requires valid setup token from invitation verification.
+    """
+    if settings.app_mode == "local":
+        raise HTTPException(
+            status_code=400,
+            detail="Collaborator setup is not available in local mode"
+        )
+    
+    # Get setup token from Authorization header
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or not auth_header.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Setup token required in Authorization header"
+        )
+    
+    setup_token = auth_header.split(" ")[1]
+    ip_address, user_agent = get_client_info(request)
+    
+    success, message, response_data = admin_service.complete_collaborator_setup(
+        session=session,
+        setup_token=setup_token,
+        password=request_data.password,
+        confirm_password=request_data.confirm_password,
+        enable_2fa=request_data.enable_2fa,
+        ip_address=ip_address,
+        user_agent=user_agent
+    )
+    
+    if not success:
+        raise HTTPException(status_code=400, detail=message)
+    
+    return CollaboratorSetPasswordResponse(
+        success=True,
+        message=message,
+        access_token=response_data.get("access_token"),
+        token_type=response_data.get("token_type"),
+        two_fa_setup=response_data.get("two_fa_setup"),
+        user=response_data.get("user")
     )
