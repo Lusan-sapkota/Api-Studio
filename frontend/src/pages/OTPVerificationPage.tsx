@@ -67,8 +67,10 @@ export function OTPVerificationPage() {
 
       switch (verificationType) {
         case 'bootstrap':
+          console.log('Sending bootstrap OTP verification:', { email, otp: otpValue });
           response = await apiService.verifyBootstrapOtp(email, otpValue);
-          nextRoute = '/first-time-setup';
+          console.log('Bootstrap OTP response:', response);
+          nextRoute = '/setup';
           break;
         case 'forgot-password':
           response = await apiService.verifyForgotPasswordOtp(email, otpValue);
@@ -84,10 +86,18 @@ export function OTPVerificationPage() {
 
       if (response.success === false || response.error) {
         // Handle specific error types
-        const errorMessage = response.error || 'Verification failed';
+        const errorMessage = typeof response.error === 'string' 
+          ? response.error 
+          : response.message || 'Verification failed';
         
         if (errorMessage.includes('SYSTEM_LOCKED')) {
           navigate('/bootstrap');
+          return;
+        }
+        
+        if (errorMessage.includes('SYSTEM_NOT_LOCKED') || errorMessage.includes('already has admin users')) {
+          setError('System setup is already complete. Please use the login page.');
+          setTimeout(() => navigate('/login'), 3000);
           return;
         }
         
@@ -105,22 +115,37 @@ export function OTPVerificationPage() {
 
       setSuccess('Code verified successfully!');
 
-      // Navigate to next step after a short delay
-      setTimeout(() => {
-        if (verificationType === 'bootstrap' && response.data && 'temp_token' in response.data) {
-          // Store temp token for first-time setup
-          sessionStorage.setItem('temp_token', response.data.temp_token);
-        } else if (verificationType === 'forgot-password' && response.data && 'reset_token' in response.data) {
-          // Store reset token for password reset
-          sessionStorage.setItem('reset_token', response.data.reset_token);
-        } else if (verificationType === 'invitation' && response.data && 'temp_token' in response.data && 'role' in response.data) {
-          // Store temp token and role for collaborator setup
-          sessionStorage.setItem('temp_token', response.data.temp_token);
-          sessionStorage.setItem('user_role', response.data.role);
-        }
+      // Store tokens immediately to avoid race conditions
+      console.log('OTP Verification - Response data:', response.data);
+      console.log('OTP Verification - Verification type:', verificationType);
+      
+      if (verificationType === 'bootstrap' && response.data && 'temp_token' in response.data) {
+        // Store temp token for first-time setup
+        console.log('OTP Verification - Storing temp token:', response.data.temp_token);
+        sessionStorage.setItem('temp_token', response.data.temp_token);
+        console.log('OTP Verification - Token stored, verifying:', sessionStorage.getItem('temp_token'));
+      } else if (verificationType === 'forgot-password' && response.data && 'reset_token' in response.data) {
+        // Store reset token for password reset
+        sessionStorage.setItem('reset_token', response.data.reset_token);
+      } else if (verificationType === 'invitation' && response.data && 'temp_token' in response.data && 'role' in response.data) {
+        // Store temp token and role for collaborator setup
+        sessionStorage.setItem('temp_token', response.data.temp_token);
+        sessionStorage.setItem('user_role', response.data.role);
+      }
 
+      // Navigate to next step after a short delay for UX
+      setTimeout(() => {
+        console.log('OTP Verification - About to navigate to:', state?.redirectTo || nextRoute);
+        console.log('OTP Verification - Final token check before navigation:', sessionStorage.getItem('temp_token'));
+        
+        // Pass temp token in navigation state as backup
+        const navigationState: any = { email, verified: true };
+        if (verificationType === 'bootstrap' && response.data && 'temp_token' in response.data) {
+          navigationState.temp_token = response.data.temp_token;
+        }
+        
         navigate(state?.redirectTo || nextRoute, {
-          state: { email, verified: true }
+          state: navigationState
         });
       }, 1500);
 

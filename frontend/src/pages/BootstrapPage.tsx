@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FormInput } from '../components/auth/FormInput';
+import { PasswordInput } from '../components/auth/PasswordInput';
 import { LoadingButton } from '../components/auth/LoadingSpinner';
 import { ErrorMessage, SuccessMessage } from '../components/auth/ErrorMessage';
 import { apiService } from '../services/api';
@@ -15,6 +16,7 @@ export function BootstrapPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [loadingStep, setLoadingStep] = useState('');
 
   // Check if we're in local mode and redirect if so
   useEffect(() => {
@@ -53,29 +55,52 @@ export function BootstrapPage() {
     setSuccess(null);
 
     try {
+      setLoadingStep('Validating bootstrap token...');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UX
+      
+      setLoadingStep('Testing SMTP connection...');
+      await new Promise(resolve => setTimeout(resolve, 500)); // Small delay for UX
+      
+      setLoadingStep('Sending verification email...');
+      
       const response = await apiService.bootstrap({
         token: formData.token.trim(),
         email: formData.email.trim()
       });
 
       if (response.success === false || response.error) {
-        setError(response.error || 'Bootstrap failed');
+        const errorMessage = typeof response.error === 'string' 
+          ? response.error 
+          : response.message || 'Bootstrap failed';
+        
+        // Add helpful context for SMTP errors
+        let displayMessage = errorMessage;
+        if (errorMessage.includes('SMTP') || errorMessage.includes('email')) {
+          displayMessage = `${errorMessage}\n\n💡 Need help? Check the backend logs for detailed SMTP configuration guidance.`;
+        }
+        
+        setError(displayMessage);
         return;
       }
 
-      setSuccess('Bootstrap token verified! Check your email for the verification code.');
+      setLoadingStep('Email sent successfully!');
+      setSuccess('Bootstrap initiated! Check your email for the verification code.');
       
       // Navigate to OTP verification page after a short delay
       setTimeout(() => {
-        navigate('/bootstrap/verify-otp', { 
-          state: { email: formData.email.trim() }
+        navigate('/verify-otp', { 
+          state: { 
+            email: formData.email.trim(),
+            type: 'bootstrap'
+          }
         });
-      }, 2000);
+      }, 1500);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An unexpected error occurred');
     } finally {
       setIsLoading(false);
+      setLoadingStep('');
     }
   };
 
@@ -118,21 +143,15 @@ export function BootstrapPage() {
 
           {/* Bootstrap Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
-            <FormInput
+            <PasswordInput
               label="Bootstrap Token"
               name="token"
-              type="password"
               value={formData.token}
               onChange={handleInputChange}
               placeholder="Enter your bootstrap token"
               required
               disabled={isLoading}
               helperText="This token was provided during system setup"
-              icon={
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z" />
-                </svg>
-              }
             />
 
             <FormInput
@@ -160,7 +179,7 @@ export function BootstrapPage() {
               className="w-full"
               disabled={!formData.token.trim() || !formData.email.trim()}
             >
-              {isLoading ? 'Verifying...' : 'Initialize System'}
+              {isLoading ? (loadingStep || 'Verifying...') : 'Initialize System'}
             </LoadingButton>
           </form>
 
@@ -180,6 +199,25 @@ export function BootstrapPage() {
                   <li>• You'll set up your admin password and two-factor authentication</li>
                   <li>• Your API Studio instance will be ready for use</li>
                 </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* Troubleshooting Section */}
+          <div className="mt-4 p-4 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <div className="flex items-start space-x-3">
+              <svg className="w-5 h-5 text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              </svg>
+              <div>
+                <h4 className="text-sm font-medium text-amber-800 dark:text-amber-200 mb-1">
+                  SMTP Issues? 
+                </h4>
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  If you encounter SMTP connection errors, please check your <code className="bg-amber-100 dark:bg-amber-800 px-1 rounded">.env</code> file 
+                  for correct SMTP settings (server, port, credentials) and restart the application. 
+                  For Gmail, use an App Password instead of your regular password.
+                </p>
               </div>
             </div>
           </div>

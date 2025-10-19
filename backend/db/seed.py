@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from sqlmodel import select
 from core.password_service import password_service
 from core.config import settings
 from db.models import User, Workspace
@@ -15,7 +16,9 @@ def seed_database(session: Session):
     """
     
     # Check if any admin users exist
-    admin_exists = session.query(User).filter(User.role == "admin").first() is not None
+    admin_query = select(User).where(User.role == "admin")
+    admin_result = session.execute(admin_query)
+    admin_exists = admin_result.scalars().first() is not None
     
     if settings.app_mode == "local":
         # Local mode: Create admin user if credentials provided and no admin exists
@@ -61,7 +64,9 @@ def create_default_workspace(session: Session, user: User):
     """Create a default workspace for a user."""
     try:
         # Check if user already has workspaces
-        existing_workspace = session.query(Workspace).filter(Workspace.owner_id == user.id).first()
+        workspace_query = select(Workspace).where(Workspace.owner_id == user.id)
+        workspace_result = session.execute(workspace_query)
+        existing_workspace = workspace_result.scalars().first()
         
         if not existing_workspace:
             default_workspace = Workspace(
@@ -106,8 +111,15 @@ def check_bootstrap_state(session: Session) -> dict:
     Returns information about system lock status and admin users.
     """
     
-    admin_count = session.query(User).filter(User.role == "admin").count()
-    total_users = session.query(User).count()
+    # Count admin users
+    admin_query = select(User).where(User.role == "admin")
+    admin_result = session.execute(admin_query)
+    admin_count = len(admin_result.scalars().all())
+    
+    # Count total users
+    total_query = select(User)
+    total_result = session.execute(total_query)
+    total_users = len(total_result.scalars().all())
     
     is_locked = admin_count == 0
     

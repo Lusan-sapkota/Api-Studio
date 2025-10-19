@@ -36,6 +36,7 @@ import { CollaboratorSetupPage } from './pages/CollaboratorSetupPage';
 import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
 import AuthLoadingPage from './pages/AuthLoadingPage';
 import { useAuth } from './contexts/AuthContext';
+import { SystemStateChecker } from './components/SystemStateChecker';
 
 function App() {
   return (
@@ -43,11 +44,13 @@ function App() {
       <NetworkErrorHandler>
         <OfflineMode>
           <BrowserRouter>
-            <AuthProvider>
-              <SecurityNotificationProvider>
-                <AppContent />
-              </SecurityNotificationProvider>
-            </AuthProvider>
+            <SystemStateChecker>
+              <AuthProvider>
+                <SecurityNotificationProvider>
+                  <AppContent />
+                </SecurityNotificationProvider>
+              </AuthProvider>
+            </SystemStateChecker>
           </BrowserRouter>
         </OfflineMode>
       </NetworkErrorHandler>

@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { FormInput } from '../components/auth/FormInput';
+import { PasswordInput } from '../components/auth/PasswordInput';
 import { PasswordStrengthIndicator } from '../components/auth/PasswordStrengthIndicator';
 import { TwoFactorSetupWizard } from '../components/auth/TwoFactorSetupWizard';
 import { LoadingButton } from '../components/auth/LoadingSpinner';
@@ -12,6 +12,7 @@ import { configService } from '../services/config';
 interface LocationState {
   email?: string;
   verified?: boolean;
+  temp_token?: string;
 }
 
 type SetupStep = 'password' | '2fa-setup' | 'complete';
@@ -21,7 +22,7 @@ export function FirstTimeSetupPage() {
   const location = useLocation();
   const { setUser, setTokens } = useAuth();
   const state = location.state as LocationState;
-  
+
   const [currentStep, setCurrentStep] = useState<SetupStep>('password');
   const [formData, setFormData] = useState({
     password: '',
@@ -36,30 +37,64 @@ export function FirstTimeSetupPage() {
     secret: string;
     backupCodes: string[];
   } | null>(null);
+  
+  const hasInitialized = useRef(false);
 
   // Check if we're in local mode and redirect if so
   useEffect(() => {
+    if (hasInitialized.current) {
+      console.log('FirstTimeSetupPage - useEffect already ran, skipping');
+      return;
+    }
+    
+    console.log('FirstTimeSetupPage - useEffect triggered (first time)');
+    console.log('FirstTimeSetupPage - configService.isLocalMode():', configService.isLocalMode());
+    
     if (configService.isLocalMode()) {
+      console.log('FirstTimeSetupPage - Local mode detected, redirecting to /');
       navigate('/');
       return;
     }
 
-    // Check if user came from verification
-    if (!state?.verified) {
-      navigate('/bootstrap');
-      return;
+    // Get temp token from session storage or navigation state
+    let tempToken = sessionStorage.getItem('temp_token');
+    console.log('FirstTimeSetupPage - temp token from storage:', tempToken);
+    
+    // Fallback to navigation state if not in sessionStorage
+    if (!tempToken && state?.temp_token) {
+      tempToken = state.temp_token;
+      console.log('FirstTimeSetupPage - temp token from navigation state:', tempToken);
+      // Store it in sessionStorage for future use
+      sessionStorage.setItem('temp_token', tempToken);
     }
-
-    // Check for temp token
-    const tempToken = sessionStorage.getItem('temp_token');
+    
     if (!tempToken) {
-      navigate('/bootstrap');
+      console.log('FirstTimeSetupPage - No temp token found, redirecting to bootstrap in 3 seconds...');
+      console.log('FirstTimeSetupPage - sessionStorage temp_token:', sessionStorage.getItem('temp_token'));
+      console.log('FirstTimeSetupPage - navigation state:', state);
+      setTimeout(() => {
+        console.log('FirstTimeSetupPage - Executing redirect to bootstrap');
+        navigate('/bootstrap');
+      }, 3000);
       return;
     }
 
-    // Set temp token for API calls
+    console.log('FirstTimeSetupPage - Setting temp token for API calls');
+    // Set the temp token for API calls
     apiService.setToken(tempToken);
-  }, [navigate, state]);
+    console.log('FirstTimeSetupPage - Token set successfully, component should stay mounted');
+    
+    // Mark as initialized
+    hasInitialized.current = true;
+
+    // Cleanup function - DON'T remove temp token to prevent issues
+    return () => {
+      console.log('FirstTimeSetupPage - Cleanup function called, but NOT removing temp token');
+      alert('FirstTimeSetupPage is unmounting! This should not happen.');
+      // sessionStorage.removeItem('temp_token'); // Commented out to prevent issues
+    };
+    apiService.setToken(tempToken);
+  }, [navigate]); // Only depend on navigate, not state
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -93,7 +128,7 @@ export function FirstTimeSetupPage() {
 
   const handlePasswordSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const { password, confirmPassword } = formData;
 
     if (!password || !confirmPassword) {
@@ -162,14 +197,14 @@ export function FirstTimeSetupPage() {
       }
 
       const data = response.data!;
-      
+
       // Set user and tokens
       setTokens(data.tokens);
       setUser(data.user);
-      
+
       // Clear temp token
       sessionStorage.removeItem('temp_token');
-      
+
       setCurrentStep('complete');
 
     } catch (err) {
@@ -182,7 +217,7 @@ export function FirstTimeSetupPage() {
   const handleSetupComplete = () => {
     // Clear any remaining session data
     sessionStorage.removeItem('temp_token');
-    
+
     // Navigate to dashboard
     navigate('/', { replace: true });
   };
@@ -230,6 +265,11 @@ export function FirstTimeSetupPage() {
             <p className="text-neutral-600 dark:text-neutral-400 mb-2">
               {getStepDescription()}
             </p>
+            {/* DEBUG INDICATOR */}
+            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mb-4">
+              ✅ FirstTimeSetupPage is mounted and stable
+            </div>
+            
             {email && (
               <p className="text-sm text-neutral-500 dark:text-neutral-400">
                 Setting up account for: <span className="font-medium">{email}</span>
@@ -240,23 +280,20 @@ export function FirstTimeSetupPage() {
           {/* Progress Indicator */}
           <div className="mb-8">
             <div className="flex items-center justify-between">
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${
-                currentStep === 'password' ? 'bg-primary-500 text-white' : 'bg-success-500 text-white'
-              }`}>
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${currentStep === 'password' ? 'bg-primary-500 text-white' : 'bg-success-500 text-white'
+                }`}>
                 {currentStep === 'password' ? '1' : (
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
                   </svg>
                 )}
               </div>
-              <div className={`w-16 h-0.5 ${
-                ['2fa-setup', 'complete'].includes(currentStep) ? 'bg-success-500' : 'bg-neutral-200 dark:bg-neutral-700'
-              }`} />
-              <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${
-                currentStep === '2fa-setup' ? 'bg-primary-500 text-white' : 
-                currentStep === 'complete' ? 'bg-success-500 text-white' : 
-                'bg-neutral-200 dark:bg-neutral-700 text-neutral-500'
-              }`}>
+              <div className={`w-16 h-0.5 ${['2fa-setup', 'complete'].includes(currentStep) ? 'bg-success-500' : 'bg-neutral-200 dark:bg-neutral-700'
+                }`} />
+              <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-semibold ${currentStep === '2fa-setup' ? 'bg-primary-500 text-white' :
+                currentStep === 'complete' ? 'bg-success-500 text-white' :
+                  'bg-neutral-200 dark:bg-neutral-700 text-neutral-500'
+                }`}>
                 {currentStep === 'complete' ? (
                   <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                     <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
@@ -272,7 +309,7 @@ export function FirstTimeSetupPage() {
 
           {/* Error/Success Messages */}
           {error && (
-            <ErrorMessage 
+            <ErrorMessage
               message={error}
               variant="banner"
               className="mb-6"
@@ -281,7 +318,7 @@ export function FirstTimeSetupPage() {
           )}
 
           {success && (
-            <SuccessMessage 
+            <SuccessMessage
               message={success}
               variant="banner"
               className="mb-6"
@@ -291,33 +328,26 @@ export function FirstTimeSetupPage() {
           {/* Step Content */}
           {currentStep === 'password' && (
             <form onSubmit={handlePasswordSubmit} className="space-y-6">
-              <FormInput
+              <PasswordInput
                 label="Password"
                 name="password"
-                type="password"
                 value={formData.password}
                 onChange={handleInputChange}
                 placeholder="Enter your password"
                 required
                 disabled={isLoading}
-                icon={
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                }
               />
 
               {formData.password && (
-                <PasswordStrengthIndicator 
+                <PasswordStrengthIndicator
                   password={formData.password}
                   showRequirements={true}
                 />
               )}
 
-              <FormInput
+              <PasswordInput
                 label="Confirm Password"
                 name="confirmPassword"
-                type="password"
                 value={formData.confirmPassword}
                 onChange={handleInputChange}
                 placeholder="Confirm your password"
@@ -325,11 +355,6 @@ export function FirstTimeSetupPage() {
                 disabled={isLoading}
                 success={formData.confirmPassword && formData.password === formData.confirmPassword ? true : undefined}
                 error={formData.confirmPassword && formData.password !== formData.confirmPassword ? 'Passwords do not match' : undefined}
-                icon={
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                }
               />
 
               <LoadingButton
@@ -367,10 +392,10 @@ export function FirstTimeSetupPage() {
                 Welcome to API Studio!
               </h3>
               <p className="text-neutral-600 dark:text-neutral-400 mb-8">
-                Your admin account has been successfully created and secured with two-factor authentication. 
+                Your admin account has been successfully created and secured with two-factor authentication.
                 You can now start using API Studio to manage your APIs and collaborate with your team.
               </p>
-              
+
               <LoadingButton
                 onClick={handleSetupComplete}
                 variant="primary"
@@ -385,4 +410,4 @@ export function FirstTimeSetupPage() {
       </div>
     </div>
   );
-}
+};

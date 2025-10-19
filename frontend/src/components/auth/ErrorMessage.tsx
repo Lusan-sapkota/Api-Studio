@@ -49,9 +49,13 @@ export function ErrorMessage({
             {title}
           </h3>
         )}
-        <p className={`text-error-700 dark:text-error-300 ${variant === 'inline' ? 'text-sm' : 'text-sm'}`}>
-          {message}
-        </p>
+        <div className={`text-error-700 dark:text-error-300 ${variant === 'inline' ? 'text-sm' : 'text-sm'}`}>
+          {message.split('\n').map((line, index) => (
+            <p key={index} className={index > 0 ? 'mt-2' : ''}>
+              {line}
+            </p>
+          ))}
+        </div>
         
         {(onRetry || onDismiss) && (
           <div className="mt-3 flex space-x-3">

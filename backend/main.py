@@ -100,16 +100,8 @@ app = FastAPI(
 # Authentication middleware (must be added before CORS)
 app.add_middleware(AuthenticationMiddleware, app_mode=settings.app_mode)
 
-# CORS configuration for authentication
-allowed_origins = [settings.frontend_url]
-if settings.app_mode == "local":
-    # In local mode, allow localhost variations for development
-    allowed_origins.extend([
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173"
-    ])
+# CORS configuration - use frontend URL from settings
+allowed_origins = [settings.frontend_url] if settings.frontend_url else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
