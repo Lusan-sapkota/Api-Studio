@@ -7,3 +7,6 @@ export { Tabs } from './Tabs';
 export { SidebarItem } from './SidebarItem';
 export { NetworkInterceptor } from './NetworkInterceptor';
 export { default as ProtectedRoute } from './ProtectedRoute';
+
+// Auth components
+export * from './auth';
