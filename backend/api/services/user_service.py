@@ -11,6 +11,10 @@ class UserService:
         return session.get(User, user_id)
 
     @staticmethod
+    def get_user_by_id(session: Session, user_id: int) -> Optional[User]:
+        return session.get(User, user_id)
+
+    @staticmethod
     def get_user_by_username(session: Session, username: str) -> Optional[User]:
         return session.query(User).filter(User.username == username).first()
 
