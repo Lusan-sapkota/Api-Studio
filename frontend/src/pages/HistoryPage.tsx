@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Clock, Search, Trash2, Play, Copy } from 'lucide-react';
 import { Card } from '../components/Card';
 import { Input } from '../components/Input';

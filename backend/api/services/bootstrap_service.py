@@ -34,7 +34,8 @@ class BootstrapService:
         """
         # Check if any admin users exist
         admin_query = select(User).where(User.role == "admin", User.status == "active")
-        admin_user = session.exec(admin_query).first()
+        result = session.execute(admin_query)
+        admin_user = result.scalars().first()
         return admin_user is None
     
     @staticmethod
@@ -102,12 +103,13 @@ class BootstrapService:
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=settings.otp_expiry)
         
         # Remove any existing bootstrap OTPs for this email
-        existing_otps = session.exec(
+        existing_otps_result = session.execute(
             select(OTPCode).where(
                 OTPCode.email == email,
                 OTPCode.otp_type == "bootstrap"
             )
-        ).all()
+        )
+        existing_otps = existing_otps_result.scalars().all()
         
         for existing_otp in existing_otps:
             session.delete(existing_otp)
@@ -175,7 +177,8 @@ class BootstrapService:
             OTPCode.otp_type == "bootstrap",
             OTPCode.used == False
         )
-        otp_record = session.exec(otp_query).first()
+        otp_result = session.execute(otp_query)
+        otp_record = otp_result.scalars().first()
         
         if not otp_record:
             logger.warning(f"No valid bootstrap OTP found for email: {email}")
@@ -278,7 +281,8 @@ class BootstrapService:
             return False, f"Password does not meet requirements: {'; '.join(errors)}", None
         
         # Check if user already exists
-        existing_user = session.exec(select(User).where(User.email == email)).first()
+        existing_user_result = session.execute(select(User).where(User.email == email))
+        existing_user = existing_user_result.scalars().first()
         if existing_user:
             return False, "Admin user already exists.", None
         

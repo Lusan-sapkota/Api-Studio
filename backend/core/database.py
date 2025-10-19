@@ -1,12 +1,12 @@
-from sqlmodel import SQLModel, create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlmodel import SQLModel, create_engine, Session
 from core.config import settings
 
 # For SQLite, use sync engine for simplicity
 engine = create_engine(settings.database_url, echo=True)
 
-# Session factory
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+# Session factory using SQLModel Session
+def SessionLocal():
+    return Session(engine)
 
 
 def get_session():

@@ -77,28 +77,50 @@ class EmailService:
             Tuple of (success, error_message)
         """
         if not self._validate_smtp_config():
-            return False, "SMTP configuration is incomplete. Please check SMTP_SERVER, SMTP_USER, and SMTP_PASSWORD."
+            return False, self._get_smtp_config_help_message()
         
         try:
             # Test synchronous connection for startup validation
-            with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-                server.starttls()
-                server.login(self.smtp_user, self.smtp_password)
-                logger.info("SMTP connection test successful")
-                return True, None
+            if self.smtp_port == 465:  # SSL port
+                with smtplib.SMTP_SSL(self.smtp_server, self.smtp_port) as server:
+                    server.login(self.smtp_user, self.smtp_password)
+                    logger.info("SMTP connection test successful (SSL)")
+                    return True, None
+            else:  # TLS port (587) or plain (25)
+                with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
+                    if settings.smtp_use_tls:
+                        server.starttls()
+                    server.login(self.smtp_user, self.smtp_password)
+                    logger.info("SMTP connection test successful (TLS)")
+                    return True, None
                 
         except smtplib.SMTPAuthenticationError as e:
-            error_msg = f"SMTP authentication failed: {str(e)}"
+            error_msg = (
+                f"SMTP authentication failed with {self.smtp_server}:{self.smtp_port}. "
+                f"Please verify your SMTP_USER and SMTP_PASSWORD in the .env file. "
+                f"For Gmail, use an App Password instead of your regular password. "
+                f"Error details: {str(e)}"
+            )
             logger.error(error_msg)
             return False, error_msg
             
         except smtplib.SMTPConnectError as e:
-            error_msg = f"SMTP connection failed: {str(e)}"
+            error_msg = (
+                f"Cannot connect to SMTP server {self.smtp_server}:{self.smtp_port}. "
+                f"Please check your SMTP_SERVER and SMTP_PORT settings in the .env file. "
+                f"Common ports: 587 (TLS), 465 (SSL), 25 (plain). "
+                f"Ensure your firewall allows outbound connections. "
+                f"Error details: {str(e)}"
+            )
             logger.error(error_msg)
             return False, error_msg
             
         except Exception as e:
-            error_msg = f"SMTP test failed: {str(e)}"
+            error_msg = (
+                f"SMTP connection test failed: {str(e)}. "
+                f"Please check your SMTP configuration in the .env file and restart the application. "
+                f"Current settings: {self.smtp_server}:{self.smtp_port}, TLS: {settings.smtp_use_tls}"
+            )
             logger.error(error_msg)
             return False, error_msg
     
@@ -110,27 +132,56 @@ class EmailService:
             Tuple of (success, error_message)
         """
         if not self._validate_smtp_config():
-            return False, "SMTP configuration is incomplete. Please check SMTP_SERVER, SMTP_USER, and SMTP_PASSWORD."
+            return False, self._get_smtp_config_help_message()
         
         try:
-            async with aiosmtplib.SMTP(hostname=self.smtp_server, port=self.smtp_port) as server:
-                await server.starttls()
-                await server.login(self.smtp_user, self.smtp_password)
-                logger.info("Async SMTP connection test successful")
-                return True, None
+            if self.smtp_port == 465:  # SSL port
+                async with aiosmtplib.SMTP(hostname=self.smtp_server, port=self.smtp_port, use_tls=True) as server:
+                    await server.login(self.smtp_user, self.smtp_password)
+                    logger.info("Async SMTP connection test successful (SSL)")
+                    return True, None
+            else:  # TLS port (587) or plain (25)
+                async with aiosmtplib.SMTP(hostname=self.smtp_server, port=self.smtp_port) as server:
+                    if settings.smtp_use_tls:
+                        try:
+                            await server.starttls()
+                        except Exception as tls_error:
+                            # If starttls fails, the connection might already be encrypted
+                            if "already using TLS" in str(tls_error):
+                                logger.info("Connection already using TLS, proceeding with login")
+                            else:
+                                raise tls_error
+                    await server.login(self.smtp_user, self.smtp_password)
+                    logger.info("Async SMTP connection test successful (TLS)")
+                    return True, None
                 
         except aiosmtplib.SMTPAuthenticationError as e:
-            error_msg = f"SMTP authentication failed: {str(e)}"
+            error_msg = (
+                f"SMTP authentication failed with {self.smtp_server}:{self.smtp_port}. "
+                f"Please verify your SMTP_USER and SMTP_PASSWORD in the .env file. "
+                f"For Gmail, use an App Password instead of your regular password. "
+                f"Error details: {str(e)}"
+            )
             logger.error(error_msg)
             return False, error_msg
             
         except aiosmtplib.SMTPConnectError as e:
-            error_msg = f"SMTP connection failed: {str(e)}"
+            error_msg = (
+                f"Cannot connect to SMTP server {self.smtp_server}:{self.smtp_port}. "
+                f"Please check your SMTP_SERVER and SMTP_PORT settings in the .env file. "
+                f"Common ports: 587 (TLS), 465 (SSL), 25 (plain). "
+                f"Ensure your firewall allows outbound connections. "
+                f"Error details: {str(e)}"
+            )
             logger.error(error_msg)
             return False, error_msg
             
         except Exception as e:
-            error_msg = f"Async SMTP test failed: {str(e)}"
+            error_msg = (
+                f"SMTP connection test failed: {str(e)}. "
+                f"Please check your SMTP configuration in the .env file and restart the application. "
+                f"Current settings: {self.smtp_server}:{self.smtp_port}, TLS: {settings.smtp_use_tls}"
+            )
             logger.error(error_msg)
             return False, error_msg
     
@@ -142,6 +193,26 @@ class EmailService:
             self.smtp_password and 
             self.email_from
         )
+    
+    def _get_smtp_config_help_message(self) -> str:
+        """Get helpful message for SMTP configuration issues."""
+        missing_configs = []
+        if not self.smtp_server:
+            missing_configs.append("SMTP_SERVER")
+        if not self.smtp_user:
+            missing_configs.append("SMTP_USER")
+        if not self.smtp_password:
+            missing_configs.append("SMTP_PASSWORD")
+        if not self.email_from:
+            missing_configs.append("EMAIL_FROM")
+        
+        if missing_configs:
+            return (
+                f"Missing SMTP configuration: {', '.join(missing_configs)}. "
+                "Please update your .env file with the correct SMTP settings and restart the application. "
+                "Example: SMTP_SERVER=smtp.gmail.com, SMTP_PORT=587, SMTP_USE_TLS=true"
+            )
+        return "SMTP configuration appears complete but connection failed."
     
     async def send_otp(self, email: str, otp: str, otp_type: str, **template_vars) -> bool:
         """
@@ -407,10 +478,23 @@ class EmailService:
         """
         for attempt in range(self.max_retries):
             try:
-                async with aiosmtplib.SMTP(hostname=self.smtp_server, port=self.smtp_port) as server:
-                    await server.starttls()
-                    await server.login(self.smtp_user, self.smtp_password)
-                    await server.send_message(message)
+                if self.smtp_port == 465:  # SSL port
+                    async with aiosmtplib.SMTP(hostname=self.smtp_server, port=self.smtp_port, use_tls=True) as server:
+                        await server.login(self.smtp_user, self.smtp_password)
+                        await server.send_message(message)
+                else:  # TLS port (587) or plain (25)
+                    async with aiosmtplib.SMTP(hostname=self.smtp_server, port=self.smtp_port) as server:
+                        if settings.smtp_use_tls:
+                            try:
+                                await server.starttls()
+                            except Exception as tls_error:
+                                # If starttls fails, the connection might already be encrypted
+                                if "already using TLS" in str(tls_error):
+                                    logger.info("Connection already using TLS, proceeding with login")
+                                else:
+                                    raise tls_error
+                        await server.login(self.smtp_user, self.smtp_password)
+                        await server.send_message(message)
                     
                 logger.info(f"Email sent successfully to {to_email}")
                 return True

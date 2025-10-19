@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     smtp_user: Optional[str] = None
     smtp_password: Optional[str] = None
     email_from: Optional[str] = None
+    smtp_use_tls: bool = True
     
     # Bootstrap Configuration
     admin_bootstrap_token: Optional[str] = None

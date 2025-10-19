@@ -5,6 +5,7 @@ import { Card } from '../components/Card';
 import { Input } from '../components/Input';
 import { Select } from '../components/Select';
 import { Tabs, Tab } from '../components/Tabs';
+import { useTheme } from '../hooks/useTheme';
 
 interface EmailAttachment {
   id: string;
@@ -43,6 +44,7 @@ interface EmailLog {
 }
 
 export function SmtpPage() {
+  const { theme } = useTheme();
   const [smtpConfig, setSmtpConfig] = useState<SmtpConfig>({
     host: 'smtp.gmail.com',
     port: 587,
@@ -349,6 +351,85 @@ Sent via API Studio SMTP Tester`
     navigator.clipboard.writeText(text);
   };
 
+  // Create theme-aware iframe content
+  const getThemedIframeContent = (htmlContent: string) => {
+    const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+    
+    // If it's a complete HTML document, inject dark theme styles
+    if (htmlContent.includes('<!DOCTYPE html>') || htmlContent.includes('<html>')) {
+      if (isDark) {
+        // Inject dark theme styles into the existing HTML
+        const darkThemeStyles = `
+          <style>
+            /* Dark theme override styles */
+            body { 
+              background-color: #1f2937 !important; 
+              color: #f9fafb !important; 
+            }
+            * { 
+              color: #f9fafb !important; 
+            }
+            .header, .footer { 
+              background-color: #374151 !important; 
+              color: #f9fafb !important; 
+            }
+            h1, h2, h3, h4, h5, h6 { 
+              color: #f9fafb !important; 
+            }
+            p { 
+              color: #e5e7eb !important; 
+            }
+            a { 
+              color: #60a5fa !important; 
+            }
+          </style>
+        `;
+        
+        // Insert the dark theme styles before the closing </head> tag
+        if (htmlContent.includes('</head>')) {
+          return htmlContent.replace('</head>', `${darkThemeStyles}</head>`);
+        } else {
+          // If no head tag, wrap the content
+          return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  ${darkThemeStyles}
+</head>
+<body>
+  ${htmlContent}
+</body>
+</html>`;
+        }
+      }
+      return htmlContent;
+    } else {
+      // If it's just HTML fragments, wrap it with proper document structure
+      const backgroundColor = isDark ? '#1f2937' : '#ffffff';
+      const textColor = isDark ? '#f9fafb' : '#000000';
+      
+      return `<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body { 
+      background-color: ${backgroundColor}; 
+      color: ${textColor}; 
+      font-family: Arial, sans-serif; 
+      line-height: 1.6; 
+      margin: 0; 
+      padding: 20px; 
+    }
+  </style>
+</head>
+<body>
+  ${htmlContent}
+</body>
+</html>`;
+    }
+  };
+
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
@@ -385,7 +466,7 @@ Sent via API Studio SMTP Tester`
         <div className="w-1/2 border-r border-neutral-200 dark:border-neutral-800 flex flex-col">
           <Tabs tabs={tabs} activeTab={activeTab} onTabChange={setActiveTab} />
           
-          <div className="flex-1 p-4 overflow-auto">
+          <div className="flex-1 p-4 overflow-auto scrollbar-thin">
             {activeTab === 'compose' && (
               <div className="space-y-4">
                 {/* Recipients */}
@@ -698,7 +779,7 @@ Sent via API Studio SMTP Tester`
                     </p>
                   </div>
                 ) : (
-                  <div className="space-y-2 max-h-96 overflow-auto">
+                  <div className="space-y-2 max-h-96 overflow-auto scrollbar-thin">
                     {emailLogs.map((log) => (
                       <Card key={log.id}>
                         <div className="p-3">
@@ -750,25 +831,29 @@ Sent via API Studio SMTP Tester`
             </div>
           </div>
 
-          <div className="flex-1 p-4 overflow-auto">
+          <div className="flex-1 p-4 overflow-auto scrollbar-thin">
             {previewMode === 'html' && (
-              <div className="border border-neutral-200 dark:border-neutral-800 rounded">
+              <div className="h-full min-h-[600px] border border-neutral-200 dark:border-neutral-800 rounded overflow-hidden bg-white dark:bg-neutral-900">
                 <iframe
-                  srcDoc={email.htmlContent}
-                  className="w-full h-96 border-none"
+                  srcDoc={getThemedIframeContent(email.htmlContent)}
+                  className="w-full h-full border-none"
                   title="Email Preview"
+                  style={{ 
+                    minHeight: '600px',
+                    backgroundColor: 'transparent'
+                  }}
                 />
               </div>
             )}
             
             {previewMode === 'text' && (
-              <pre className="whitespace-pre-wrap text-sm font-mono text-neutral-900 dark:text-neutral-100 p-4 bg-neutral-50 dark:bg-neutral-900 rounded border">
+              <pre className="whitespace-pre-wrap text-sm font-mono text-neutral-900 dark:text-neutral-100 p-4 bg-neutral-50 dark:bg-neutral-900 rounded border h-full min-h-[600px] overflow-auto scrollbar-thin">
                 {email.textContent}
               </pre>
             )}
             
             {previewMode === 'code' && (
-              <pre className="whitespace-pre-wrap text-sm font-mono text-neutral-900 dark:text-neutral-100 p-4 bg-neutral-50 dark:bg-neutral-900 rounded border">
+              <pre className="whitespace-pre-wrap text-sm font-mono text-neutral-900 dark:text-neutral-100 p-4 bg-neutral-50 dark:bg-neutral-900 rounded border h-full min-h-[600px] overflow-auto scrollbar-thin">
                 {email.htmlContent}
               </pre>
             )}

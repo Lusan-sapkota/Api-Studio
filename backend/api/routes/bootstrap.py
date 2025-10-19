@@ -229,6 +229,18 @@ def verify_bootstrap_otp(
         # Get client info for logging
         ip_address, user_agent = get_client_info(request)
         
+        # Check if system is still locked (no admin users exist)
+        if not bootstrap_service.is_system_locked(session):
+            raise HTTPException(
+                status_code=400,
+                detail={
+                    "success": False,
+                    "error": "SYSTEM_NOT_LOCKED",
+                    "message": "System already has admin users. Bootstrap not required.",
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                }
+            )
+        
         # Verify OTP
         success, message, temp_token = bootstrap_service.verify_bootstrap_otp(
             session=session,

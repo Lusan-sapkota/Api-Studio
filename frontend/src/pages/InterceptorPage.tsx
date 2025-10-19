@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { NetworkInterceptor } from '../components/NetworkInterceptor';
 
 export function InterceptorPage() {

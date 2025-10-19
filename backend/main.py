@@ -8,7 +8,7 @@ from db.seed import seed_database
 from core.database import get_session
 from core.config_validator import validate_and_log_config, ConfigurationError
 from core.middleware import AuthenticationMiddleware
-from api.routes import requests, collections, environments, workspaces, auth, docs, notes, tasks, websocket_client, graphql_client, grpc_client, smtp_client, bootstrap, admin
+from api.routes import requests, collections, environments, workspaces, auth, docs, notes, tasks, websocket_client, graphql_client, grpc_client, smtp_client, bootstrap, admin, user
 import os
 import logging
 from dotenv import load_dotenv
@@ -63,24 +63,24 @@ async def lifespan(app: FastAPI):
         
         # Log startup completion with mode-specific info
         if settings.app_mode == "local":
-            logger.info("✅ Application startup complete - Local mode (no authentication)")
+            logger.info("Application startup complete - Local mode (no authentication)")
         else:
-            logger.info("✅ Application startup complete - Hosted mode (authentication enabled)")
+            logger.info("Application startup complete - Hosted mode (authentication enabled)")
             
             # Check if system needs bootstrap
             for session in get_session():
                 from api.services.bootstrap_service import bootstrap_service
                 if bootstrap_service.is_system_locked(session):
-                    logger.info("🔒 System is locked - bootstrap required to create first admin user")
+                    logger.info("System is locked - bootstrap required to create first admin user")
                 else:
-                    logger.info("🔓 System is unlocked - admin user exists")
+                    logger.info("System is unlocked - admin user exists")
                 break
         
     except ConfigurationError as e:
-        logger.error(f"❌ Startup failed: {str(e)}")
+        logger.error(f"Startup failed: {str(e)}")
         raise
     except Exception as e:
-        logger.error(f"❌ Unexpected startup error: {str(e)}")
+        logger.error(f"Unexpected startup error: {str(e)}")
         raise
     
     yield
@@ -100,16 +100,8 @@ app = FastAPI(
 # Authentication middleware (must be added before CORS)
 app.add_middleware(AuthenticationMiddleware, app_mode=settings.app_mode)
 
-# CORS configuration for authentication
-allowed_origins = [settings.frontend_url]
-if settings.app_mode == "local":
-    # In local mode, allow localhost variations for development
-    allowed_origins.extend([
-        "http://localhost:3000",
-        "http://localhost:5173",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173"
-    ])
+# CORS configuration - use frontend URL from settings
+allowed_origins = [settings.frontend_url] if settings.frontend_url else ["*"]
 
 app.add_middleware(
     CORSMiddleware,
@@ -135,6 +127,7 @@ app.include_router(collections.router)
 app.include_router(environments.router)
 app.include_router(workspaces.router)
 app.include_router(auth.router)
+app.include_router(user.router)  # User profile and settings routes
 app.include_router(admin.router)  # Admin routes for user management
 app.include_router(docs.router)
 app.include_router(notes.router)
@@ -314,6 +307,38 @@ async def system_status():
             status_code=500,
             detail="Failed to retrieve system status"
         )
+
+
+# SPA fallback route - this should be last to catch all unmatched routes
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+import os
+
+# Serve static files if they exist (for production builds)
+if os.path.exists("static"):
+    app.mount("/static", StaticFiles(directory="static"), name="static")
+
+@app.get("/{full_path:path}")
+async def spa_fallback(full_path: str):
+    """
+    Fallback route for SPA - returns 404 for API routes, 
+    but allows frontend routing for non-API paths.
+    """
+    # If it's an API route that doesn't exist, return 404
+    if full_path.startswith("api/"):
+        raise HTTPException(status_code=404, detail="API endpoint not found")
+    
+    # For all other routes, let the frontend handle routing
+    # In production, this would serve index.html
+    # In development, we just return a JSON response indicating SPA routing
+    return JSONResponse(
+        status_code=200,
+        content={
+            "spa_route": True,
+            "path": full_path,
+            "message": "This route is handled by the frontend SPA"
+        }
+    )
 
 
 @app.websocket("/ws")

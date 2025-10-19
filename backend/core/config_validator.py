@@ -184,22 +184,22 @@ class ConfigValidator:
         smtp_available = validation_result.get("smtp_available", False)
         
         summary = [
-            f"🚀 API Studio starting in {mode.upper()} mode",
+            f"API Studio starting in {mode.upper()} mode",
             ""
         ]
         
         if mode == "hosted":
             summary.extend([
-                "📧 Email features: " + ("✅ Available" if smtp_available else "❌ Not configured"),
-                "🔐 Authentication: ✅ Enabled",
-                "👥 Multi-user: ✅ Enabled",
+                "📧 Email features: " + ("Available" if smtp_available else "❌ Not configured"),
+                "🔐 Authentication: Enabled",
+                "👥 Multi-user: Enabled",
                 ""
             ])
         else:
             summary.extend([
-                "📧 Email features: ❌ Disabled (local mode)",
-                "🔐 Authentication: ❌ Disabled (local mode)",
-                "👥 Multi-user: ❌ Disabled (local mode)",
+                "📧 Email features: Disabled (local mode)",
+                "🔐 Authentication: Disabled (local mode)",
+                "👥 Multi-user: Disabled (local mode)",
                 ""
             ])
         
@@ -210,7 +210,7 @@ class ConfigValidator:
                 ""
             ])
         
-        summary.append("✅ Configuration validation complete")
+        summary.append("Configuration validation complete")
         
         return "\n".join(summary)
 
