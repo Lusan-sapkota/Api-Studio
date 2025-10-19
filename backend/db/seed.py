@@ -5,8 +5,8 @@ from db.models import User, Workspace
 
 
 def seed_database(session: Session):
-    # Create admin user if credentials provided
-    if settings.admin_username and settings.admin_password:
+    # Create admin user if credentials provided and in local mode
+    if settings.admin_username and settings.admin_password and settings.app_mode == "local":
         admin_user = session.get(User, 1)
         if not admin_user:
             hashed_password = get_password_hash(settings.admin_password)
@@ -14,7 +14,10 @@ def seed_database(session: Session):
                 username=settings.admin_username,
                 email=f"{settings.admin_username}@example.com",
                 hashed_password=hashed_password,
-                is_admin=True
+                is_admin=True,
+                name="Admin User",
+                role="admin",
+                status="active"
             )
             session.add(admin_user)
             session.commit()

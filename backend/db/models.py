@@ -14,9 +14,23 @@ class User(BaseModel, table=True):
     email: str = Field(unique=True, index=True)
     hashed_password: str
     is_admin: bool = Field(default=False)
+    
+    # New authentication fields
+    name: Optional[str] = None
+    role: str = Field(default="viewer")  # admin, editor, viewer
+    two_factor_enabled: bool = Field(default=False)
+    two_factor_secret: Optional[str] = None
+    backup_codes: Optional[str] = None  # JSON string of hashed codes
+    requires_password_change: bool = Field(default=False)
+    last_login_at: Optional[datetime] = None
+    failed_login_attempts: int = Field(default=0)
+    locked_until: Optional[datetime] = None
+    status: str = Field(default="active")  # active, locked, suspended
 
     # Relationships
     workspaces: List["Workspace"] = Relationship(back_populates="owner")
+    audit_logs: List["AuditLog"] = Relationship(back_populates="user")
+    sent_invitations: List["Invitation"] = Relationship(back_populates="inviter")
 
 
 class Workspace(BaseModel, table=True):
@@ -101,3 +115,37 @@ class Doc(BaseModel, table=True):
 
     # Relationships
     request: Request = Relationship(back_populates="docs")
+
+
+class OTPCode(BaseModel, table=True):
+    email: str = Field(index=True)
+    otp_code: str
+    otp_type: str  # bootstrap, forgot_password, invitation
+    expires_at: datetime
+    attempts: int = Field(default=0)
+    used: bool = Field(default=False)
+
+
+class Invitation(BaseModel, table=True):
+    email: str
+    role: str
+    invited_by: int = Field(foreign_key="user.id")
+    otp_code: str
+    expires_at: datetime
+    accepted: bool = Field(default=False)
+    
+    # Relationships
+    inviter: User = Relationship(back_populates="sent_invitations")
+
+
+class AuditLog(BaseModel, table=True):
+    user_id: Optional[int] = Field(foreign_key="user.id")
+    action: str
+    resource_type: Optional[str] = None
+    resource_id: Optional[str] = None
+    details: Optional[Dict[str, Any]] = Field(default_factory=dict, sa_type=JSON)
+    ip_address: Optional[str] = None
+    user_agent: Optional[str] = None
+    
+    # Relationships
+    user: Optional[User] = Relationship(back_populates="audit_logs")
