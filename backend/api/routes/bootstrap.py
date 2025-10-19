@@ -9,6 +9,9 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlmodel import Session
 from core.database import get_session
 from core.config import settings
+from core.rate_limiter import rate_limiter
+from core.security_validator import security_validator
+from core.audit_service import audit_service, AuditActions
 from api.schemas.bootstrap_schemas import (
     BootstrapRequest, BootstrapResponse,
     BootstrapVerifyOTPRequest, BootstrapVerifyOTPResponse,
@@ -94,10 +97,50 @@ async def initiate_bootstrap(
         # Get client info for logging
         ip_address, user_agent = get_client_info(request)
         
+        # Validate input
+        is_valid, error_msg = security_validator.validate_email(request_data.email)
+        if not is_valid:
+            raise HTTPException(status_code=400, detail=error_msg)
+        
+        # Check rate limits
+        allowed, reason, retry_after = rate_limiter.check_rate_limit(
+            endpoint="bootstrap",
+            ip_address=ip_address,
+            email=request_data.email
+        )
+        
+        if not allowed:
+            # Log rate limit exceeded
+            audit_service.log_security_event(
+                action=AuditActions.RATE_LIMIT_EXCEEDED,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"endpoint": "bootstrap", "email": request_data.email, "reason": reason},
+                session=session
+            )
+            
+            headers = {}
+            if retry_after:
+                headers["Retry-After"] = str(retry_after)
+            
+            raise HTTPException(
+                status_code=429,
+                detail=reason,
+                headers=headers
+            )
+        
         # Initiate bootstrap
         success, message, details = await bootstrap_service.initiate_bootstrap(
             session=session,
             token=request_data.token,
+            email=request_data.email
+        )
+        
+        # Record attempt for rate limiting
+        rate_limiter.record_attempt(
+            endpoint="bootstrap",
+            success=success,
+            ip_address=ip_address,
             email=request_data.email
         )
         

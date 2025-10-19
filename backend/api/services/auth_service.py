@@ -13,6 +13,7 @@ from core.jwt_service import jwt_service
 from core.password_service import password_service
 from core.two_factor_service import two_factor_service
 from core.email_service import email_service
+from core.audit_service import audit_service, AuditActions
 from core.config import settings
 
 
@@ -51,25 +52,40 @@ class AuthService:
         
         if not user:
             # Log failed attempt
-            AuthService._log_auth_event(
-                session, None, "login_failed", "invalid_email", 
-                ip_address, user_agent, {"email": email}
+            audit_service.log_authentication_event(
+                action=AuditActions.LOGIN_FAILED,
+                email=email,
+                success=False,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "invalid_email"},
+                session=session
             )
             return False, None, None, {"message": "Invalid email or password"}
         
         # Check if account is locked
         if AuthService._is_account_locked(user):
-            AuthService._log_auth_event(
-                session, user.id, "login_failed", "account_locked",
-                ip_address, user_agent
+            audit_service.log_authentication_event(
+                action=AuditActions.LOGIN_FAILED,
+                email=email,
+                success=False,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "account_locked"},
+                session=session
             )
             return False, None, None, {"message": "Account is temporarily locked due to too many failed attempts"}
         
         # Check if account is suspended
         if user.status != "active":
-            AuthService._log_auth_event(
-                session, user.id, "login_failed", "account_suspended",
-                ip_address, user_agent
+            audit_service.log_authentication_event(
+                action=AuditActions.LOGIN_FAILED,
+                email=email,
+                success=False,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "account_suspended", "status": user.status},
+                session=session
             )
             return False, None, None, {"message": "Account is suspended"}
         
@@ -81,14 +97,23 @@ class AuthService:
             # Lock account if too many failures
             if user.failed_login_attempts >= settings.max_login_attempts:
                 user.locked_until = datetime.now(timezone.utc) + timedelta(seconds=settings.login_lockout_duration)
-                AuthService._log_auth_event(
-                    session, user.id, "account_locked", "max_attempts_exceeded",
-                    ip_address, user_agent, {"attempts": user.failed_login_attempts}
+                audit_service.log_security_event(
+                    action=AuditActions.ACCOUNT_LOCKED,
+                    user_id=user.id,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    details={"reason": "max_attempts_exceeded", "attempts": user.failed_login_attempts},
+                    session=session
                 )
             else:
-                AuthService._log_auth_event(
-                    session, user.id, "login_failed", "invalid_password",
-                    ip_address, user_agent, {"attempts": user.failed_login_attempts}
+                audit_service.log_authentication_event(
+                    action=AuditActions.LOGIN_FAILED,
+                    email=email,
+                    success=False,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    details={"reason": "invalid_password", "attempts": user.failed_login_attempts},
+                    session=session
                 )
             
             session.add(user)
@@ -108,17 +133,27 @@ class AuthService:
                     session.add(user)
                     session.commit()
                     
-                    AuthService._log_auth_event(
-                        session, user.id, "login_failed", "invalid_2fa_totp",
-                        ip_address, user_agent, {"attempts": user.failed_login_attempts}
+                    audit_service.log_authentication_event(
+                        action=AuditActions.LOGIN_FAILED,
+                        email=email,
+                        success=False,
+                        ip_address=ip_address,
+                        user_agent=user_agent,
+                        details={"reason": "invalid_2fa_totp", "attempts": user.failed_login_attempts},
+                        session=session
                     )
                     return False, None, None, {"message": "Invalid 2FA code"}
             
             elif backup_code:
                 if not user.backup_codes:
-                    AuthService._log_auth_event(
-                        session, user.id, "login_failed", "no_backup_codes",
-                        ip_address, user_agent
+                    audit_service.log_authentication_event(
+                        action=AuditActions.LOGIN_FAILED,
+                        email=email,
+                        success=False,
+                        ip_address=ip_address,
+                        user_agent=user_agent,
+                        details={"reason": "no_backup_codes"},
+                        session=session
                     )
                     return False, None, None, {"message": "No backup codes available"}
                 
@@ -133,9 +168,14 @@ class AuthService:
                     session.add(user)
                     session.commit()
                     
-                    AuthService._log_auth_event(
-                        session, user.id, "login_failed", "invalid_backup_code",
-                        ip_address, user_agent, {"attempts": user.failed_login_attempts}
+                    audit_service.log_authentication_event(
+                        action=AuditActions.LOGIN_FAILED,
+                        email=email,
+                        success=False,
+                        ip_address=ip_address,
+                        user_agent=user_agent,
+                        details={"reason": "invalid_backup_code", "attempts": user.failed_login_attempts},
+                        session=session
                     )
                     return False, None, None, {"message": "Invalid backup code"}
                 
@@ -163,9 +203,14 @@ class AuthService:
         access_token = jwt_service.create_token(token_data)
         
         # Log successful login
-        AuthService._log_auth_event(
-            session, user.id, "login_success", "authenticated",
-            ip_address, user_agent, {"2fa_used": user.two_factor_enabled}
+        audit_service.log_authentication_event(
+            action=AuditActions.LOGIN_SUCCESS,
+            email=email,
+            success=True,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={"2fa_used": user.two_factor_enabled},
+            session=session
         )
         
         return True, user, access_token, {"message": "Login successful"}
@@ -211,21 +256,36 @@ class AuthService:
             try:
                 email_service.send_password_reset_otp(email, otp_code)
                 
-                AuthService._log_auth_event(
-                    session, user.id, "password_reset_requested", "otp_sent",
-                    ip_address, user_agent
+                audit_service.log_authentication_event(
+                    action=AuditActions.PASSWORD_RESET_REQUESTED,
+                    email=email,
+                    success=True,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    details={"otp_sent": True},
+                    session=session
                 )
             except Exception as e:
                 # Log error but don't reveal to user
-                AuthService._log_auth_event(
-                    session, user.id, "password_reset_failed", "email_send_error",
-                    ip_address, user_agent, {"error": str(e)}
+                audit_service.log_authentication_event(
+                    action=AuditActions.PASSWORD_RESET_REQUESTED,
+                    email=email,
+                    success=False,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    details={"reason": "email_send_error", "error": str(e)},
+                    session=session
                 )
         else:
             # Log attempt for non-existent or inactive user
-            AuthService._log_auth_event(
-                session, None, "password_reset_attempted", "invalid_email",
-                ip_address, user_agent, {"email": email}
+            audit_service.log_authentication_event(
+                action=AuditActions.PASSWORD_RESET_REQUESTED,
+                email=email,
+                success=False,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "invalid_email"},
+                session=session
             )
         
         # Always return True to prevent email enumeration
@@ -267,9 +327,14 @@ class AuthService:
         otp_record = session.execute(statement).scalar_one_or_none()
         
         if not otp_record:
-            AuthService._log_auth_event(
-                session, user.id, "password_reset_failed", "no_otp_found",
-                ip_address, user_agent
+            audit_service.log_authentication_event(
+                action=AuditActions.PASSWORD_RESET_REQUESTED,
+                email=email,
+                success=False,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "no_otp_found"},
+                session=session
             )
             return False, None
         
@@ -279,17 +344,27 @@ class AuthService:
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         if current_time > expires_at:
-            AuthService._log_auth_event(
-                session, user.id, "password_reset_failed", "otp_expired",
-                ip_address, user_agent
+            audit_service.log_authentication_event(
+                action=AuditActions.PASSWORD_RESET_REQUESTED,
+                email=email,
+                success=False,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "otp_expired"},
+                session=session
             )
             return False, None
         
         # Check attempts
         if otp_record.attempts >= 3:
-            AuthService._log_auth_event(
-                session, user.id, "password_reset_failed", "max_otp_attempts",
-                ip_address, user_agent
+            audit_service.log_authentication_event(
+                action=AuditActions.PASSWORD_RESET_REQUESTED,
+                email=email,
+                success=False,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "max_otp_attempts"},
+                session=session
             )
             return False, None
         
@@ -299,9 +374,14 @@ class AuthService:
             session.add(otp_record)
             session.commit()
             
-            AuthService._log_auth_event(
-                session, user.id, "password_reset_failed", "invalid_otp",
-                ip_address, user_agent, {"attempts": otp_record.attempts}
+            audit_service.log_authentication_event(
+                action=AuditActions.PASSWORD_RESET_REQUESTED,
+                email=email,
+                success=False,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "invalid_otp", "attempts": otp_record.attempts},
+                session=session
             )
             return False, None
         
@@ -316,9 +396,14 @@ class AuthService:
             expires_minutes=30
         )
         
-        AuthService._log_auth_event(
-            session, user.id, "password_reset_otp_verified", "reset_token_generated",
-            ip_address, user_agent
+        audit_service.log_authentication_event(
+            action=AuditActions.PASSWORD_RESET_REQUESTED,
+            email=email,
+            success=True,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={"otp_verified": True, "reset_token_generated": True},
+            session=session
         )
         
         return True, reset_token
@@ -377,9 +462,13 @@ class AuthService:
             except Exception:
                 pass  # Don't fail if email can't be sent
             
-            AuthService._log_auth_event(
-                session, user.id, "password_reset_completed", "password_changed",
-                ip_address, user_agent
+            audit_service.log_authentication_event(
+                action=AuditActions.PASSWORD_RESET_COMPLETED,
+                email=user.email,
+                success=True,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                session=session
             )
             
             return True, "Password reset successfully"
@@ -441,39 +530,7 @@ class AuthService:
         
         return current_time < locked_until
     
-    @staticmethod
-    def _log_auth_event(
-        session: Session,
-        user_id: Optional[int],
-        action: str,
-        resource_type: str,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
-    ):
-        """
-        Log authentication-related events for audit trail.
-        
-        Args:
-            session: Database session
-            user_id: User ID (None for anonymous events)
-            action: Action performed
-            resource_type: Type of resource/event
-            ip_address: Client IP address
-            user_agent: Client user agent
-            details: Additional event details
-        """
-        audit_log = AuditLog(
-            user_id=user_id,
-            action=action,
-            resource_type=resource_type,
-            details=details or {},
-            ip_address=ip_address,
-            user_agent=user_agent
-        )
-        
-        session.add(audit_log)
-        session.commit()
+
 
 
 # Global instance

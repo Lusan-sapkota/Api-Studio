@@ -14,7 +14,8 @@ from db.models import User
 from api.routes.auth import get_current_user, get_client_info
 from api.schemas.admin_schemas import (
     InviteUserRequest, InviteUserResponse, CollaboratorListResponse,
-    UpdateCollaboratorRequest, UpdateCollaboratorResponse, RemoveCollaboratorResponse
+    UpdateCollaboratorRequest, UpdateCollaboratorResponse, RemoveCollaboratorResponse,
+    AuditLogListResponse, AuditLogFilters
 )
 from api.services.admin_service import admin_service
 
@@ -188,4 +189,68 @@ def remove_collaborator(
     return RemoveCollaboratorResponse(
         success=True,
         message=message
+    )
+
+
+@router.get("/audit-logs", response_model=AuditLogListResponse)
+def get_audit_logs(
+    limit: int = 100,
+    offset: int = 0,
+    user_id: Optional[int] = None,
+    action: Optional[str] = None,
+    resource_type: Optional[str] = None,
+    session: Session = Depends(get_session),
+    admin_user: dict = Depends(require_admin)
+):
+    """
+    Get audit logs with optional filtering.
+    
+    - **limit**: Maximum number of logs to return (1-1000, default 100)
+    - **offset**: Number of logs to skip for pagination (default 0)
+    - **user_id**: Filter by user ID (optional)
+    - **action**: Filter by action type (optional)
+    - **resource_type**: Filter by resource type (optional)
+    
+    Requires admin privileges.
+    """
+    if settings.app_mode == "local":
+        raise HTTPException(
+            status_code=400,
+            detail="Audit logs are not available in local mode"
+        )
+    
+    # Validate limit
+    if limit < 1 or limit > 1000:
+        raise HTTPException(
+            status_code=400,
+            detail="Limit must be between 1 and 1000"
+        )
+    
+    if offset < 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Offset must be non-negative"
+        )
+    
+    # Get the actual User object for the admin service
+    admin_user_obj = session.get(User, admin_user["user_id"])
+    if not admin_user_obj:
+        raise HTTPException(status_code=404, detail="Admin user not found")
+    
+    logs, total_count = admin_service.get_audit_logs(
+        session=session,
+        admin_user=admin_user_obj,
+        limit=limit,
+        offset=offset,
+        user_id=user_id,
+        action=action,
+        resource_type=resource_type
+    )
+    
+    return AuditLogListResponse(
+        success=True,
+        logs=logs,
+        total=total_count,
+        limit=limit,
+        offset=offset
     )

@@ -3,7 +3,7 @@ Pydantic schemas for admin endpoints including user management and invitations.
 """
 
 from pydantic import BaseModel, EmailStr, Field
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 
 
@@ -91,3 +91,36 @@ class RemoveCollaboratorResponse(BaseModel):
     """Schema for removing collaborator response."""
     success: bool
     message: str
+
+
+class AuditLogResponse(BaseModel):
+    """Schema for audit log entry."""
+    id: int
+    user_id: Optional[int]
+    username: Optional[str]
+    email: Optional[str]
+    action: str
+    resource_type: Optional[str]
+    resource_id: Optional[str]
+    details: Optional[Dict[str, Any]]
+    ip_address: Optional[str]
+    user_agent: Optional[str]
+    created_at: datetime
+
+
+class AuditLogListResponse(BaseModel):
+    """Schema for listing audit logs."""
+    success: bool
+    logs: List[AuditLogResponse]
+    total: int
+    limit: int
+    offset: int
+
+
+class AuditLogFilters(BaseModel):
+    """Schema for audit log filtering."""
+    user_id: Optional[int] = None
+    action: Optional[str] = None
+    resource_type: Optional[str] = None
+    limit: int = Field(default=100, ge=1, le=1000)
+    offset: int = Field(default=0, ge=0)

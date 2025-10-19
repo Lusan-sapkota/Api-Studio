@@ -13,6 +13,7 @@ from core.jwt_service import jwt_service
 from core.password_service import password_service
 from core.two_factor_service import two_factor_service
 from core.email_service import email_service
+from core.audit_service import audit_service, AuditActions
 from core.config import settings
 
 
@@ -52,9 +53,14 @@ class AdminService:
         # Check if user already exists
         existing_user = session.execute(select(User).where(User.email == email)).scalar_one_or_none()
         if existing_user:
-            AdminService._log_admin_event(
-                session, admin_user.id, "invite_failed", "user_exists",
-                ip_address, user_agent, {"email": email}
+            audit_service.log_user_management_event(
+                action="user_invite_failed",
+                admin_user_id=admin_user.id,
+                target_email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "user_exists"},
+                session=session
             )
             return False, None, "User with this email already exists", None
         
@@ -68,9 +74,14 @@ class AdminService:
         ).scalar_one_or_none()
         
         if existing_invitation:
-            AdminService._log_admin_event(
-                session, admin_user.id, "invite_failed", "invitation_exists",
-                ip_address, user_agent, {"email": email}
+            audit_service.log_user_management_event(
+                action="user_invite_failed",
+                admin_user_id=admin_user.id,
+                target_email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "invitation_exists"},
+                session=session
             )
             return False, None, "Pending invitation already exists for this email", None
         
@@ -101,13 +112,17 @@ class AdminService:
                 expires_at=expires_at
             )
             
-            AdminService._log_admin_event(
-                session, admin_user.id, "user_invited", "invitation_sent",
-                ip_address, user_agent, {
-                    "email": email,
+            audit_service.log_user_management_event(
+                action=AuditActions.USER_INVITED,
+                admin_user_id=admin_user.id,
+                target_email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={
                     "role": role,
                     "invitation_id": invitation.id
-                }
+                },
+                session=session
             )
             
             return True, invitation.id, "Invitation sent successfully", expires_at
@@ -117,12 +132,17 @@ class AdminService:
             session.delete(invitation)
             session.commit()
             
-            AdminService._log_admin_event(
-                session, admin_user.id, "invite_failed", "email_send_error",
-                ip_address, user_agent, {
-                    "email": email,
+            audit_service.log_user_management_event(
+                action="user_invite_failed",
+                admin_user_id=admin_user.id,
+                target_email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={
+                    "reason": "email_send_error",
                     "error": str(e)
-                }
+                },
+                session=session
             )
             
             return False, None, "Failed to send invitation email", None
@@ -157,9 +177,14 @@ class AdminService:
         ).scalar_one_or_none()
         
         if not invitation:
-            AdminService._log_admin_event(
-                session, None, "invitation_verification_failed", "no_invitation",
-                ip_address, user_agent, {"email": email}
+            audit_service.log_user_management_event(
+                action="invitation_verification_failed",
+                admin_user_id=None,
+                target_email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "no_invitation"},
+                session=session
             )
             return False, None, None, None
         
@@ -169,17 +194,27 @@ class AdminService:
         if expires_at.tzinfo is None:
             expires_at = expires_at.replace(tzinfo=timezone.utc)
         if current_time > expires_at:
-            AdminService._log_admin_event(
-                session, invitation.invited_by, "invitation_verification_failed", "invitation_expired",
-                ip_address, user_agent, {"email": email, "invitation_id": invitation.id}
+            audit_service.log_user_management_event(
+                action="invitation_verification_failed",
+                admin_user_id=invitation.invited_by,
+                target_email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "invitation_expired", "invitation_id": invitation.id},
+                session=session
             )
             return False, None, None, None
         
         # Verify OTP
         if invitation.otp_code != otp_code:
-            AdminService._log_admin_event(
-                session, invitation.invited_by, "invitation_verification_failed", "invalid_otp",
-                ip_address, user_agent, {"email": email, "invitation_id": invitation.id}
+            audit_service.log_user_management_event(
+                action="invitation_verification_failed",
+                admin_user_id=invitation.invited_by,
+                target_email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "invalid_otp", "invitation_id": invitation.id},
+                session=session
             )
             return False, None, None, None
         
@@ -195,9 +230,14 @@ class AdminService:
             expires_minutes=30
         )
         
-        AdminService._log_admin_event(
-            session, invitation.invited_by, "invitation_verified", "setup_token_generated",
-            ip_address, user_agent, {"email": email, "invitation_id": invitation.id}
+        audit_service.log_user_management_event(
+            action="invitation_verified",
+            admin_user_id=invitation.invited_by,
+            target_email=email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={"invitation_id": invitation.id, "setup_token_generated": True},
+            session=session
         )
         
         return True, setup_token, invitation.role, setup_expires_at
@@ -350,14 +390,18 @@ class AdminService:
                 response_data["token_type"] = "bearer"
                 message = "Account created and logged in successfully"
             
-            AdminService._log_admin_event(
-                session, invitation.invited_by, "collaborator_setup_completed", "account_created",
-                ip_address, user_agent, {
-                    "user_id": user.id,
-                    "email": email,
+            audit_service.log_user_management_event(
+                action=AuditActions.USER_INVITATION_ACCEPTED,
+                admin_user_id=invitation.invited_by,
+                target_user_id=user.id,
+                target_email=email,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={
                     "role": role,
                     "2fa_enabled": enable_2fa
-                }
+                },
+                session=session
             )
             
             return True, message, response_data
@@ -448,9 +492,14 @@ class AdminService:
         
         # Prevent admin from changing their own role
         if collaborator.id == admin_user.id:
-            AdminService._log_admin_event(
-                session, admin_user.id, "role_update_failed", "self_modification_attempted",
-                ip_address, user_agent, {"target_user_id": collaborator_id}
+            audit_service.log_user_management_event(
+                action="role_update_failed",
+                admin_user_id=admin_user.id,
+                target_user_id=collaborator_id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "self_modification_attempted"},
+                session=session
             )
             return False, "Cannot modify your own role", None
         
@@ -464,14 +513,18 @@ class AdminService:
         session.refresh(collaborator)
         
         # Log the change
-        AdminService._log_admin_event(
-            session, admin_user.id, "role_updated", "collaborator_role_changed",
-            ip_address, user_agent, {
-                "target_user_id": collaborator.id,
-                "target_email": collaborator.email,
+        audit_service.log_user_management_event(
+            action=AuditActions.USER_ROLE_CHANGED,
+            admin_user_id=admin_user.id,
+            target_user_id=collaborator.id,
+            target_email=collaborator.email,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={
                 "old_role": old_role,
                 "new_role": new_role
-            }
+            },
+            session=session
         )
         
         user_data = {
@@ -516,9 +569,14 @@ class AdminService:
         
         # Prevent admin from removing themselves
         if collaborator.id == admin_user.id:
-            AdminService._log_admin_event(
-                session, admin_user.id, "user_removal_failed", "self_removal_attempted",
-                ip_address, user_agent, {"target_user_id": collaborator_id}
+            audit_service.log_user_management_event(
+                action="user_removal_failed",
+                admin_user_id=admin_user.id,
+                target_user_id=collaborator_id,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                details={"reason": "self_removal_attempted"},
+                session=session
             )
             return False, "Cannot remove your own account"
         
@@ -529,9 +587,14 @@ class AdminService:
             ).scalars().all()
             
             if len(admin_count) <= 1:
-                AdminService._log_admin_event(
-                    session, admin_user.id, "user_removal_failed", "last_admin_protection",
-                    ip_address, user_agent, {"target_user_id": collaborator_id}
+                audit_service.log_user_management_event(
+                    action="user_removal_failed",
+                    admin_user_id=admin_user.id,
+                    target_user_id=collaborator_id,
+                    ip_address=ip_address,
+                    user_agent=user_agent,
+                    details={"reason": "last_admin_protection"},
+                    session=session
                 )
                 return False, "Cannot remove the last admin user"
         
@@ -547,46 +610,94 @@ class AdminService:
         session.commit()
         
         # Log the removal
-        AdminService._log_admin_event(
-            session, admin_user.id, "user_removed", "collaborator_deleted",
-            ip_address, user_agent, user_info
+        audit_service.log_user_management_event(
+            action=AuditActions.USER_REMOVED,
+            admin_user_id=admin_user.id,
+            target_user_id=user_info["target_user_id"],
+            target_email=user_info["target_email"],
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={"target_role": user_info["target_role"]},
+            session=session
         )
         
         return True, "User removed successfully"
     
     @staticmethod
-    def _log_admin_event(
+    def get_audit_logs(
         session: Session,
-        admin_user_id: Optional[int],
-        action: str,
-        resource_type: str,
-        ip_address: Optional[str] = None,
-        user_agent: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None
-    ):
+        admin_user: User,
+        limit: int = 100,
+        offset: int = 0,
+        user_id: Optional[int] = None,
+        action: Optional[str] = None,
+        resource_type: Optional[str] = None
+    ) -> Tuple[List[Dict[str, Any]], int]:
         """
-        Log admin-related events for audit trail.
+        Get audit logs with optional filtering.
         
         Args:
             session: Database session
-            admin_user_id: Admin user ID performing the action
-            action: Action performed
-            resource_type: Type of resource/event
-            ip_address: Client IP address
-            user_agent: Client user agent
-            details: Additional event details
+            admin_user: Admin user requesting logs
+            limit: Maximum number of logs to return
+            offset: Number of logs to skip
+            user_id: Filter by user ID
+            action: Filter by action
+            resource_type: Filter by resource type
+            
+        Returns:
+            Tuple of (logs, total_count)
         """
-        audit_log = AuditLog(
-            user_id=admin_user_id,
+        # Get audit logs using the audit service
+        logs = audit_service.get_audit_logs(
+            limit=limit,
+            offset=offset,
+            user_id=user_id,
             action=action,
             resource_type=resource_type,
-            details=details or {},
-            ip_address=ip_address,
-            user_agent=user_agent
+            session=session
         )
         
-        session.add(audit_log)
-        session.commit()
+        # Get total count for pagination
+        count_query = select(AuditLog)
+        if user_id:
+            count_query = count_query.where(AuditLog.user_id == user_id)
+        if action:
+            count_query = count_query.where(AuditLog.action == action)
+        if resource_type:
+            count_query = count_query.where(AuditLog.resource_type == resource_type)
+        
+        total_count = len(session.exec(count_query).all())
+        
+        # Format logs with user information
+        formatted_logs = []
+        for log in logs:
+            log_data = {
+                "id": log.id,
+                "user_id": log.user_id,
+                "username": None,
+                "email": None,
+                "action": log.action,
+                "resource_type": log.resource_type,
+                "resource_id": log.resource_id,
+                "details": log.details,
+                "ip_address": log.ip_address,
+                "user_agent": log.user_agent,
+                "created_at": log.created_at
+            }
+            
+            # Add user information if available
+            if log.user_id:
+                user = session.get(User, log.user_id)
+                if user:
+                    log_data["username"] = user.username
+                    log_data["email"] = user.email
+            
+            formatted_logs.append(log_data)
+        
+        return formatted_logs, total_count
+    
+
 
 
 # Global instance

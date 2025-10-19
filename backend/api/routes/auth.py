@@ -5,6 +5,9 @@ from typing import Optional
 from core.database import get_session
 from core.config import settings
 from core.jwt_service import jwt_service
+from core.rate_limiter import rate_limiter
+from core.security_validator import security_validator
+from core.audit_service import audit_service, AuditActions
 from db.models import User
 from api.schemas.user_schemas import (
     LoginWith2FARequest, ForgotPasswordRequest, VerifyOTPRequest, 
@@ -99,6 +102,38 @@ def login(
     
     ip_address, user_agent = get_client_info(request)
     
+    # Validate input
+    is_valid, error_msg = security_validator.validate_email(login_data.email)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Check rate limits
+    allowed, reason, retry_after = rate_limiter.check_rate_limit(
+        endpoint="login",
+        ip_address=ip_address,
+        email=login_data.email
+    )
+    
+    if not allowed:
+        # Log rate limit exceeded
+        audit_service.log_security_event(
+            action=AuditActions.RATE_LIMIT_EXCEEDED,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={"endpoint": "login", "email": login_data.email, "reason": reason},
+            session=session
+        )
+        
+        headers = {}
+        if retry_after:
+            headers["Retry-After"] = str(retry_after)
+        
+        raise HTTPException(
+            status_code=429,
+            detail=reason,
+            headers=headers
+        )
+    
     success, user, token, additional_data = auth_service.authenticate_user(
         session=session,
         email=login_data.email,
@@ -107,6 +142,14 @@ def login(
         backup_code=login_data.backup_code,
         ip_address=ip_address,
         user_agent=user_agent
+    )
+    
+    # Record login attempt for rate limiting
+    rate_limiter.record_attempt(
+        endpoint="login",
+        success=success,
+        ip_address=ip_address,
+        email=login_data.email
     )
     
     if not success:
@@ -166,11 +209,51 @@ def forgot_password(
     
     ip_address, user_agent = get_client_info(request)
     
-    auth_service.initiate_password_reset(
+    # Validate input
+    is_valid, error_msg = security_validator.validate_email(request_data.email)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Check rate limits
+    allowed, reason, retry_after = rate_limiter.check_rate_limit(
+        endpoint="password_reset",
+        ip_address=ip_address,
+        email=request_data.email
+    )
+    
+    if not allowed:
+        # Log rate limit exceeded
+        audit_service.log_security_event(
+            action=AuditActions.RATE_LIMIT_EXCEEDED,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={"endpoint": "password_reset", "email": request_data.email, "reason": reason},
+            session=session
+        )
+        
+        headers = {}
+        if retry_after:
+            headers["Retry-After"] = str(retry_after)
+        
+        raise HTTPException(
+            status_code=429,
+            detail=reason,
+            headers=headers
+        )
+    
+    success = auth_service.initiate_password_reset(
         session=session,
         email=request_data.email,
         ip_address=ip_address,
         user_agent=user_agent
+    )
+    
+    # Record attempt for rate limiting
+    rate_limiter.record_attempt(
+        endpoint="password_reset",
+        success=True,  # Always record as success to prevent enumeration
+        ip_address=ip_address,
+        email=request_data.email
     )
     
     return AuthResponse(
@@ -199,12 +282,52 @@ def verify_password_reset_otp(
     
     ip_address, user_agent = get_client_info(request)
     
+    # Validate input
+    is_valid, error_msg = security_validator.validate_email(request_data.email)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Check rate limits
+    allowed, reason, retry_after = rate_limiter.check_rate_limit(
+        endpoint="otp_request",
+        ip_address=ip_address,
+        email=request_data.email
+    )
+    
+    if not allowed:
+        # Log rate limit exceeded
+        audit_service.log_security_event(
+            action=AuditActions.RATE_LIMIT_EXCEEDED,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={"endpoint": "otp_request", "email": request_data.email, "reason": reason},
+            session=session
+        )
+        
+        headers = {}
+        if retry_after:
+            headers["Retry-After"] = str(retry_after)
+        
+        raise HTTPException(
+            status_code=429,
+            detail=reason,
+            headers=headers
+        )
+    
     success, reset_token = auth_service.verify_password_reset_otp(
         session=session,
         email=request_data.email,
         otp_code=request_data.otp_code,
         ip_address=ip_address,
         user_agent=user_agent
+    )
+    
+    # Record attempt for rate limiting
+    rate_limiter.record_attempt(
+        endpoint="otp_request",
+        success=success,
+        ip_address=ip_address,
+        email=request_data.email
     )
     
     if not success:
@@ -306,13 +429,13 @@ def logout(
     ip_address, user_agent = get_client_info(request)
     
     # Log logout event
-    auth_service._log_auth_event(
-        session=session,
-        user_id=current_user.id,
-        action="logout",
-        resource_type="session",
+    audit_service.log_authentication_event(
+        action=AuditActions.LOGOUT,
+        email=current_user.email,
+        success=True,
         ip_address=ip_address,
-        user_agent=user_agent
+        user_agent=user_agent,
+        session=session
     )
     
     return AuthResponse(
@@ -341,12 +464,52 @@ def verify_invitation(
     
     ip_address, user_agent = get_client_info(request)
     
+    # Validate input
+    is_valid, error_msg = security_validator.validate_email(request_data.email)
+    if not is_valid:
+        raise HTTPException(status_code=400, detail=error_msg)
+    
+    # Check rate limits
+    allowed, reason, retry_after = rate_limiter.check_rate_limit(
+        endpoint="invitation",
+        ip_address=ip_address,
+        email=request_data.email
+    )
+    
+    if not allowed:
+        # Log rate limit exceeded
+        audit_service.log_security_event(
+            action=AuditActions.RATE_LIMIT_EXCEEDED,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            details={"endpoint": "invitation", "email": request_data.email, "reason": reason},
+            session=session
+        )
+        
+        headers = {}
+        if retry_after:
+            headers["Retry-After"] = str(retry_after)
+        
+        raise HTTPException(
+            status_code=429,
+            detail=reason,
+            headers=headers
+        )
+    
     success, setup_token, role, expires_at = admin_service.verify_invitation(
         session=session,
         email=request_data.email,
         otp_code=request_data.otp_code,
         ip_address=ip_address,
         user_agent=user_agent
+    )
+    
+    # Record attempt for rate limiting
+    rate_limiter.record_attempt(
+        endpoint="invitation",
+        success=success,
+        ip_address=ip_address,
+        email=request_data.email
     )
     
     if not success:
