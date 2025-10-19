@@ -8,7 +8,7 @@ from db.seed import seed_database
 from core.database import get_session
 from core.config_validator import validate_and_log_config, ConfigurationError
 from core.middleware import AuthenticationMiddleware
-from api.routes import requests, collections, environments, workspaces, auth, docs, notes, tasks, websocket_client, graphql_client, grpc_client, smtp_client
+from api.routes import requests, collections, environments, workspaces, auth, docs, notes, tasks, websocket_client, graphql_client, grpc_client, smtp_client, bootstrap
 import os
 import logging
 from dotenv import load_dotenv
@@ -78,6 +78,7 @@ app.add_middleware(
 )
 
 # Include routers
+app.include_router(bootstrap.router)  # Bootstrap routes (must be first for system lock handling)
 app.include_router(requests.router)
 app.include_router(collections.router)
 app.include_router(environments.router)
