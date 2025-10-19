@@ -71,12 +71,25 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
             "/api/admin/",
         ]
         
-        # Routes that require editor or admin role
-        self.editor_routes = [
+        # Routes that require editor or admin role for write operations
+        self.editor_write_routes = [
             "/api/workspaces",
-            "/api/collections",
+            "/api/collections", 
             "/api/environments",
             "/api/requests",
+            "/api/notes",
+            "/api/tasks",
+        ]
+        
+        # Routes that all authenticated users can read
+        self.read_routes = [
+            "/api/workspaces",
+            "/api/collections",
+            "/api/environments", 
+            "/api/requests",
+            "/api/notes",
+            "/api/tasks",
+            "/api/docs",
         ]
     
     async def dispatch(self, request: Request, call_next) -> Response:
@@ -251,17 +264,21 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                 )
             return
         
-        # Check editor routes (admin and editor can access)
-        if any(path.startswith(route) for route in self.editor_routes):
-            # For write operations, require editor or admin role
+        # Check write operations on editor routes
+        if any(path.startswith(route) for route in self.editor_write_routes):
             if method in ["POST", "PUT", "PATCH", "DELETE"]:
                 if user_role not in ["admin", "editor"]:
                     raise HTTPException(
                         status_code=status.HTTP_403_FORBIDDEN,
                         detail="Editor or admin access required for write operations"
                     )
-            # For read operations, all authenticated users can access
             return
+        
+        # Check read operations - all authenticated users can read
+        if any(path.startswith(route) for route in self.read_routes):
+            if method in ["GET", "HEAD", "OPTIONS"]:
+                # All authenticated users can read
+                return
         
         # All other protected routes allow any authenticated user
         logger.debug(f"Access granted for {user_role} to {path}")

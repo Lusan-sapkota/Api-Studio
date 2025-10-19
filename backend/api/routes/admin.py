@@ -9,6 +9,7 @@ from typing import Optional
 
 from core.database import get_session
 from core.config import settings
+from core.rbac import require_admin, require_user_management, require_user_invite, require_user_view
 from db.models import User
 from api.routes.auth import get_current_user, get_client_info
 from api.schemas.admin_schemas import (
@@ -20,34 +21,15 @@ from api.services.admin_service import admin_service
 router = APIRouter(prefix="/api/admin", tags=["admin"])
 
 
-def require_admin(current_user: User = Depends(get_current_user)) -> User:
-    """
-    Dependency to ensure current user has admin role.
-    
-    Args:
-        current_user: Current authenticated user
-        
-    Returns:
-        User object if admin, raises HTTPException otherwise
-    """
-    if settings.app_mode == "local":
-        return current_user  # In local mode, all users are effectively admin
-    
-    if current_user.role != "admin":
-        raise HTTPException(
-            status_code=403,
-            detail="Admin privileges required"
-        )
-    
-    return current_user
+# Remove the old require_admin function since we're using the RBAC version
 
 
 @router.post("/invite", response_model=InviteUserResponse)
 def invite_user(
     invite_data: InviteUserRequest,
     request: Request,
-    admin_user: User = Depends(require_admin),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    admin_user: dict = Depends(require_user_invite)
 ):
     """
     Invite a new user to the system.
@@ -66,9 +48,14 @@ def invite_user(
     
     ip_address, user_agent = get_client_info(request)
     
+    # Get the actual User object for the admin service
+    admin_user_obj = session.get(User, admin_user["user_id"])
+    if not admin_user_obj:
+        raise HTTPException(status_code=404, detail="Admin user not found")
+    
     success, invitation_id, message, expires_at = admin_service.invite_user(
         session=session,
-        admin_user=admin_user,
+        admin_user=admin_user_obj,
         email=invite_data.email,
         role=invite_data.role,
         name=invite_data.name,
@@ -89,8 +76,8 @@ def invite_user(
 
 @router.get("/collaborators", response_model=CollaboratorListResponse)
 def list_collaborators(
-    admin_user: User = Depends(require_admin),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    admin_user: dict = Depends(require_user_view)
 ):
     """
     List all collaborators in the system.
@@ -98,7 +85,12 @@ def list_collaborators(
     Returns user information including roles, status, and invitation details.
     Requires admin privileges.
     """
-    collaborators = admin_service.list_collaborators(session, admin_user)
+    # Get the actual User object for the admin service
+    admin_user_obj = session.get(User, admin_user["user_id"])
+    if not admin_user_obj:
+        raise HTTPException(status_code=404, detail="Admin user not found")
+    
+    collaborators = admin_service.list_collaborators(session, admin_user_obj)
     
     return CollaboratorListResponse(
         success=True,
@@ -112,8 +104,8 @@ def update_collaborator_role(
     collaborator_id: int,
     update_data: UpdateCollaboratorRequest,
     request: Request,
-    admin_user: User = Depends(require_admin),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    admin_user: dict = Depends(require_user_management)
 ):
     """
     Update a collaborator's role.
@@ -131,9 +123,14 @@ def update_collaborator_role(
     
     ip_address, user_agent = get_client_info(request)
     
+    # Get the actual User object for the admin service
+    admin_user_obj = session.get(User, admin_user["user_id"])
+    if not admin_user_obj:
+        raise HTTPException(status_code=404, detail="Admin user not found")
+    
     success, message, user_data = admin_service.update_collaborator_role(
         session=session,
-        admin_user=admin_user,
+        admin_user=admin_user_obj,
         collaborator_id=collaborator_id,
         new_role=update_data.role,
         ip_address=ip_address,
@@ -154,8 +151,8 @@ def update_collaborator_role(
 def remove_collaborator(
     collaborator_id: int,
     request: Request,
-    admin_user: User = Depends(require_admin),
-    session: Session = Depends(get_session)
+    session: Session = Depends(get_session),
+    admin_user: dict = Depends(require_user_management)
 ):
     """
     Remove a collaborator from the system.
@@ -172,9 +169,14 @@ def remove_collaborator(
     
     ip_address, user_agent = get_client_info(request)
     
+    # Get the actual User object for the admin service
+    admin_user_obj = session.get(User, admin_user["user_id"])
+    if not admin_user_obj:
+        raise HTTPException(status_code=404, detail="Admin user not found")
+    
     success, message = admin_service.remove_collaborator(
         session=session,
-        admin_user=admin_user,
+        admin_user=admin_user_obj,
         collaborator_id=collaborator_id,
         ip_address=ip_address,
         user_agent=user_agent

@@ -1,7 +1,13 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request as FastAPIRequest
 from sqlmodel import Session
 from typing import List
 from core.database import get_session
+from core.rbac import (
+    require_request_create, require_request_view, require_request_edit,
+    require_request_delete, require_request_send, require_request_access, 
+    Permission, RBACService
+)
+from core.middleware import get_current_user
 from api.schemas.request_schemas import RequestCreate, RequestUpdate, RequestResponse
 from api.services.request_service import RequestService
 import httpx
@@ -25,8 +31,12 @@ class SendRequestResponse(BaseModel):
 
 
 @router.post("/send", response_model=SendRequestResponse)
-async def send_request(request_data: SendRequestData):
-    """Send an HTTP request to an external API"""
+async def send_request(
+    request_data: SendRequestData,
+    request: FastAPIRequest,
+    current_user: dict = Depends(require_request_send)
+):
+    """Send an HTTP request to an external API. All authenticated users can send requests."""
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
             # Prepare request
@@ -74,33 +84,77 @@ async def send_request(request_data: SendRequestData):
 
 
 @router.get("/", response_model=List[RequestResponse])
-def get_requests(collection_id: int = None, session: Session = Depends(get_session)):
+def get_requests(
+    collection_id: int = None, 
+    request: FastAPIRequest = None,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(require_request_view)
+):
+    """Get requests. Users can only see requests in collections they have access to."""
+    if collection_id:
+        # Check collection access if specified
+        if current_user and not RBACService.can_access_collection(
+            current_user, collection_id, session, Permission.VIEW_COLLECTION
+        ):
+            raise HTTPException(status_code=403, detail="Access denied to collection")
+    
     return RequestService.get_requests(session, collection_id)
 
 
 @router.get("/{request_id}", response_model=RequestResponse)
-def get_request(request_id: int, session: Session = Depends(get_session)):
-    request = RequestService.get_request(session, request_id)
-    if not request:
+def get_request(
+    request_id: int, 
+    request: FastAPIRequest,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(require_request_access(Permission.VIEW_REQUEST))
+):
+    """Get a specific request. Users can only access requests in collections they own."""
+    api_request = RequestService.get_request(session, request_id)
+    if not api_request:
         raise HTTPException(status_code=404, detail="Request not found")
-    return request
+    return api_request
 
 
 @router.post("/", response_model=RequestResponse)
-def create_request(request_data: RequestCreate, session: Session = Depends(get_session)):
+def create_request(
+    request_data: RequestCreate, 
+    request: FastAPIRequest,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(require_request_create)
+):
+    """Create a new request. Users must have access to the target collection."""
+    # Check collection access
+    if current_user and not RBACService.can_access_collection(
+        current_user, request_data.collection_id, session, Permission.CREATE_REQUEST
+    ):
+        raise HTTPException(status_code=403, detail="Access denied to collection")
+    
     return RequestService.create_request(session, request_data)
 
 
 @router.put("/{request_id}", response_model=RequestResponse)
-def update_request(request_id: int, update_data: RequestUpdate, session: Session = Depends(get_session)):
-    request = RequestService.update_request(session, request_id, update_data)
-    if not request:
+def update_request(
+    request_id: int, 
+    update_data: RequestUpdate, 
+    request: FastAPIRequest,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(require_request_access(Permission.EDIT_REQUEST))
+):
+    """Update a request. Users can only update requests in collections they own."""
+    api_request = RequestService.update_request(session, request_id, update_data)
+    if not api_request:
         raise HTTPException(status_code=404, detail="Request not found")
-    return request
+    return api_request
 
 
 @router.delete("/{request_id}")
-def delete_request(request_id: int, session: Session = Depends(get_session)):
+def delete_request(
+    request_id: int, 
+    request: FastAPIRequest,
+    session: Session = Depends(get_session),
+    current_user: dict = Depends(require_request_access(Permission.DELETE_REQUEST))
+):
+    """Delete a request. Users can only delete requests in collections they own."""
     success = RequestService.delete_request(session, request_id)
     if not success:
         raise HTTPException(status_code=404, detail="Request not found")
@@ -123,16 +177,23 @@ class HistoryItem(BaseModel):
 
 
 @router.post("/history", response_model=dict)
-async def save_to_history(history_item: HistoryItem):
-    """Save a request to history"""
+async def save_to_history(
+    history_item: HistoryItem,
+    request: FastAPIRequest,
+    current_user: dict = Depends(require_request_send)
+):
+    """Save a request to history. All authenticated users can save to history."""
     # In a real app, you'd save this to a database
     # For now, we'll just return success since the frontend handles localStorage
     return {"message": "Request saved to history", "id": history_item.id}
 
 
 @router.get("/history", response_model=List[HistoryItem])
-async def get_history():
-    """Get request history"""
+async def get_history(
+    request: FastAPIRequest,
+    current_user: dict = Depends(require_request_view)
+):
+    """Get request history. All authenticated users can view their history."""
     # In a real app, you'd fetch from database
     # For now, return empty list since frontend uses localStorage
     return []
