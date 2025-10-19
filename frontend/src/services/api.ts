@@ -346,6 +346,71 @@ class ApiService {
   async getSystemStatus(): Promise<ApiResponse<{ mode: string; bootstrap_required: boolean; smtp_configured: boolean }>> {
     return this.request('/api/admin/system-status');
   }
+
+  // User Profile and Settings API
+  async getUserProfile(): Promise<ApiResponse<{ user: User }>> {
+    return this.request('/api/user/profile');
+  }
+
+  async updateUserProfile(data: { name?: string; email?: string }): Promise<ApiResponse<{ user: User }>> {
+    return this.request('/api/user/profile', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async changePassword(data: { current_password: string; new_password: string }): Promise<ApiResponse<{ message: string }>> {
+    return this.request('/api/user/change-password', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async getSecuritySettings(): Promise<ApiResponse<{ 
+    two_factor_enabled: boolean; 
+    backup_codes_count: number; 
+    last_password_change?: string;
+    active_sessions_count: number;
+  }>> {
+    return this.request('/api/user/security-settings');
+  }
+
+  async enable2FA(): Promise<ApiResponse<{ qr_code: string; backup_codes: string[]; message: string }>> {
+    return this.request('/api/user/enable-2fa', {
+      method: 'POST',
+    });
+  }
+
+  async verify2FASetup(totp_code: string): Promise<ApiResponse<{ message: string; backup_codes: string[] }>> {
+    return this.request('/api/user/verify-2fa', {
+      method: 'POST',
+      body: JSON.stringify({ totp_code }),
+    });
+  }
+
+  async disable2FA(data: { password: string; totp_code?: string }): Promise<ApiResponse<{ message: string }>> {
+    return this.request('/api/user/disable-2fa', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
+
+  async regenerateBackupCodes(): Promise<ApiResponse<{ backup_codes: string[]; message: string }>> {
+    return this.request('/api/user/regenerate-backup-codes', {
+      method: 'POST',
+    });
+  }
+
+  async getUserSessions(): Promise<ApiResponse<{ sessions: Array<{
+    id: string;
+    ip_address?: string;
+    user_agent?: string;
+    created_at: string;
+    last_active: string;
+    is_current: boolean;
+  }> }>> {
+    return this.request('/api/user/sessions');
+  }
 }
 
 export const apiService = new ApiService();

@@ -211,6 +211,15 @@ class AuditActions:
     
     # Security events
     PASSWORD_CHANGED = "password_changed"
+    PASSWORD_CHANGE_FAILED = "password_change_failed"
     ACCOUNT_LOCKED = "account_locked"
     SUSPICIOUS_ACTIVITY = "suspicious_activity"
     RATE_LIMIT_EXCEEDED = "rate_limit_exceeded"
+    
+    # Profile events
+    PROFILE_UPDATED = "profile_updated"
+    
+    # 2FA setup events
+    TWO_FA_SETUP_INITIATED = "2fa_setup_initiated"
+    TWO_FA_SETUP_FAILED = "2fa_setup_failed"
+    TWO_FA_DISABLE_FAILED = "2fa_disable_failed"
