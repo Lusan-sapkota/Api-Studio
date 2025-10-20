@@ -321,11 +321,10 @@ export function ProfileSettingsPage() {
                     <button
                       key={tab.id}
                       onClick={() => setActiveTab(tab.id)}
-                      className={`w-full text-left px-3 py-2 rounded text-sm transition-colors flex items-center gap-2 ${
-                        activeTab === tab.id
-                          ? 'bg-primary-500/10 text-primary-500 font-medium'
-                          : 'text-neutral-600 dark:text-neutral-400 hover:bg-surface-light dark:hover:bg-surface-dark'
-                      }`}
+                      className={`w-full text-left px-3 py-2 rounded text-sm transition-colors flex items-center gap-2 ${activeTab === tab.id
+                        ? 'bg-primary-500/10 text-primary-500 font-medium'
+                        : 'text-neutral-600 dark:text-neutral-400 hover:bg-surface-light dark:hover:bg-surface-dark'
+                        }`}
                     >
                       <Icon className="w-4 h-4" />
                       {tab.title}
@@ -354,7 +353,7 @@ export function ProfileSettingsPage() {
                     <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
                       Profile Information
                     </h3>
-                    
+
                     <form onSubmit={handleUpdateProfile} className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
@@ -368,7 +367,7 @@ export function ProfileSettingsPage() {
                           required
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                           Email Address
@@ -381,7 +380,7 @@ export function ProfileSettingsPage() {
                           required
                         />
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                           Role
@@ -393,7 +392,7 @@ export function ProfileSettingsPage() {
                           className="bg-neutral-50 dark:bg-neutral-800"
                         />
                       </div>
-                      
+
                       <Button type="submit" variant="primary" disabled={loading}>
                         {loading ? <LoadingSpinner size="sm" /> : <Save className="w-4 h-4 mr-2" />}
                         Save Changes
@@ -412,7 +411,7 @@ export function ProfileSettingsPage() {
                     <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
                       Change Password
                     </h3>
-                    
+
                     <form onSubmit={handleChangePassword} className="space-y-4">
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
@@ -435,7 +434,7 @@ export function ProfileSettingsPage() {
                           </button>
                         </div>
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                           New Password
@@ -460,7 +459,7 @@ export function ProfileSettingsPage() {
                           <PasswordStrengthIndicator password={passwordData.new_password} />
                         )}
                       </div>
-                      
+
                       <div>
                         <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                           Confirm New Password
@@ -482,7 +481,7 @@ export function ProfileSettingsPage() {
                           </button>
                         </div>
                       </div>
-                      
+
                       <Button type="submit" variant="primary" disabled={loading}>
                         {loading ? <LoadingSpinner size="sm" /> : <Key className="w-4 h-4 mr-2" />}
                         Change Password
@@ -499,11 +498,10 @@ export function ProfileSettingsPage() {
                         Two-Factor Authentication
                       </h3>
                       {securitySettings && (
-                        <span className={`px-2 py-1 text-xs rounded ${
-                          securitySettings.two_factor_enabled
-                            ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
-                            : 'bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200'
-                        }`}>
+                        <span className={`px-2 py-1 text-xs rounded ${securitySettings.two_factor_enabled
+                          ? 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200'
+                          : 'bg-neutral-100 text-neutral-800 dark:bg-neutral-900 dark:text-neutral-200'
+                          }`}>
                           {securitySettings.two_factor_enabled ? 'Enabled' : 'Disabled'}
                         </span>
                       )}
@@ -519,7 +517,7 @@ export function ProfileSettingsPage() {
                             <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
                               Add an extra layer of security to your account by enabling two-factor authentication.
                             </p>
-                            
+
                             {twoFASetup.step === 'idle' && (
                               <Button onClick={handleEnable2FA} variant="primary" disabled={loading}>
                                 <Smartphone className="w-4 h-4 mr-2" />
@@ -530,7 +528,7 @@ export function ProfileSettingsPage() {
                             {twoFASetup.step === 'setup' && twoFASetup.qr_code && (
                               <div className="space-y-4">
                                 <QRCodeDisplay qrCodeUrl={twoFASetup.qr_code} secret="" />
-                                
+
                                 <div>
                                   <label className="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">
                                     Enter verification code from your authenticator app
@@ -579,7 +577,7 @@ export function ProfileSettingsPage() {
                               <p className="text-sm text-neutral-600 dark:text-neutral-400 mb-4">
                                 This will remove the extra security layer from your account.
                               </p>
-                              
+
                               <div className="space-y-3">
                                 <Input
                                   type="password"
@@ -588,7 +586,7 @@ export function ProfileSettingsPage() {
                                   onChange={(e) => setDisable2FAData(prev => ({ ...prev, password: e.target.value }))}
                                 />
                                 <Input
-                                  placeholder="Enter TOTP code (optional)"
+                                  placeholder="Enter TOTP code"
                                   value={disable2FAData.totp_code}
                                   onChange={(e) => setDisable2FAData(prev => ({ ...prev, totp_code: e.target.value }))}
                                 />
@@ -617,7 +615,7 @@ export function ProfileSettingsPage() {
                     <h3 className="text-lg font-semibold text-neutral-900 dark:text-neutral-100 mb-4">
                       Active Sessions
                     </h3>
-                    
+
                     {loading ? (
                       <LoadingSpinner />
                     ) : sessions.length > 0 ? (
@@ -642,7 +640,7 @@ export function ProfileSettingsPage() {
                                   <p>Last active: {new Date(session.last_active).toLocaleString()}</p>
                                 </div>
                               </div>
-                              
+
                               {!session.is_current && (
                                 <Button variant="secondary" size="sm">
                                   Revoke

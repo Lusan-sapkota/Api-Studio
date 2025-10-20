@@ -37,6 +37,7 @@ import { ProfileSettingsPage } from './pages/ProfileSettingsPage';
 import AuthLoadingPage from './pages/AuthLoadingPage';
 import { useAuth } from './contexts/AuthContext';
 import { SystemStateChecker } from './components/SystemStateChecker';
+import { TokenDebug } from './components/TokenDebug';
 
 function App() {
   return (
@@ -63,6 +64,7 @@ function AppContent() {
 
   return (
     <>
+      <TokenDebug />
       <SessionTimeoutWarning 
         onLogout={logout}
         onExtendSession={() => {

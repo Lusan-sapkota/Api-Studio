@@ -206,8 +206,8 @@ class AuthenticationMiddleware(BaseHTTPMiddleware):
                     detail="Invalid token type"
                 )
             
-            # Get user ID from token
-            user_id = payload.get("user_id")
+            # Get user ID from token (stored as 'sub' in JWT standard)
+            user_id = payload.get("sub") or payload.get("user_id")
             if not user_id:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,

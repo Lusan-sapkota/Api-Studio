@@ -55,9 +55,17 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       user,
       isAuthenticated: !!user,
     }));
+    
+    // Persist user data to localStorage
+    if (user) {
+      localStorage.setItem('user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('user');
+    }
   };
 
   const setTokens = (tokens: AuthTokens | null) => {
+    console.log('AUTH: Setting tokens:', { hasTokens: !!tokens });
     if (tokens) {
       apiService.setToken(tokens.access_token);
     } else {
@@ -84,6 +92,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const response = await apiService.login({ email, password, totp_code: totpCode });
 
+      // Check if 2FA is required first (even when success is false)
+      if (response.requires_2fa) {
+        return { success: false, requires_2fa: true };
+      }
+
       if (response.success === false || response.error) {
         setError(response.error || 'Login failed');
         return { success: false, error: response.error };
@@ -91,14 +104,12 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       const data = response.data!;
 
-      // Check if 2FA is required
-      if (data.requires_2fa) {
-        return { success: false, requires_2fa: true };
-      }
-
       // Login successful
-      if (data.tokens) {
-        setTokens(data.tokens);
+      if (data.access_token && data.token_type) {
+        setTokens({
+          access_token: data.access_token,
+          token_type: data.token_type
+        });
       }
       setUser(data.user);
 
@@ -133,23 +144,57 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError(null);
 
       const token = apiService.getToken();
+      console.log('RefreshUser - Token check:', { hasToken: !!token, tokenLength: token?.length });
+      
       if (!token) {
+        console.log('RefreshUser - No token found, clearing user');
         setUser(null);
         return;
       }
 
+      // Check if token is expired before making API call
+      try {
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        const now = Math.floor(Date.now() / 1000);
+        console.log('RefreshUser - Token payload:', { exp: payload.exp, now, expired: payload.exp < now });
+        
+        if (payload.exp && payload.exp < now) {
+          console.log('RefreshUser - Token is expired, clearing');
+          setTokens(null);
+          setUser(null);
+          return;
+        }
+      } catch (e) {
+        console.error('RefreshUser - Failed to decode token:', e);
+      }
+
+      console.log('RefreshUser - Making API call to getCurrentUser');
       const response = await apiService.getCurrentUser();
+      console.log('RefreshUser - API response:', { success: response.success, error: response.error });
 
       if (response.success === false || response.error) {
         // Token might be expired or invalid
-        setTokens(null);
-        setUser(null);
+        console.error('RefreshUser - Token validation failed:', response.error);
+        console.error('RefreshUser - Full response:', response);
+        
+        // Only clear tokens if it's actually an auth error
+        if (response.error?.includes('token') || response.error?.includes('auth') || response.error?.includes('expired')) {
+          setTokens(null);
+          setUser(null);
+        }
         return;
       }
 
+      // Update user data (this will also save to localStorage)
+      console.log('RefreshUser - Success, updating user data');
       setUser(response.data!);
     } catch (error) {
-      console.error('Failed to refresh user:', error);
+      console.error('RefreshUser - Exception occurred:', error);
+      // Don't clear tokens on network errors
+      if (error instanceof Error && error.message.includes('fetch')) {
+        console.log('RefreshUser - Network error, keeping tokens');
+        return;
+      }
       setTokens(null);
       setUser(null);
     } finally {
@@ -172,11 +217,59 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       }
 
       const token = apiService.getToken();
-      if (token) {
+      const savedUser = localStorage.getItem('user');
+      const directToken = localStorage.getItem('auth_token');
+      
+      console.log('=== AUTH INITIALIZATION START ===');
+      console.log('Auth initialization:', { 
+        hasToken: !!token, 
+        tokenLength: token?.length || 0,
+        hasSavedUser: !!savedUser,
+        directTokenLength: directToken?.length || 0,
+        tokenPreview: token ? token.substring(0, 50) + '...' : null,
+        directTokenPreview: directToken ? directToken.substring(0, 50) + '...' : null
+      });
+      
+      // If API service doesn't have token but localStorage does, set it
+      if (!token && directToken) {
+        console.log('API service missing token, setting from localStorage');
+        apiService.setToken(directToken);
+      }
+      
+      const finalToken = token || directToken;
+      
+      if (finalToken && savedUser) {
+        // Load user from localStorage first for immediate UI update
+        try {
+          const savedData = JSON.parse(savedUser);
+          // Handle both old and new user data formats
+          const user = savedData.user || savedData;
+          console.log('Loading saved user:', user.email, user.role);
+          setUser(user);
+          setLoading(false); // Set loading to false immediately for better UX
+          
+          // Then refresh user data from server in background
+          console.log('Token found, refreshing user in background. Token length:', finalToken.length);
+          refreshUser().catch(error => {
+            console.error('Background refresh failed:', error);
+            // Don't clear user on background refresh failure
+          });
+        } catch (error) {
+          console.error('Failed to parse saved user:', error);
+          localStorage.removeItem('user');
+          // Fallback to server refresh
+          await refreshUser();
+        }
+      } else if (finalToken) {
+        // Token exists but no saved user, refresh from server
+        console.log('Token found but no saved user, refreshing from server. Token length:', finalToken.length);
         await refreshUser();
       } else {
+        console.log('No token found, user not authenticated');
         setLoading(false);
       }
+      
+      console.log('=== AUTH INITIALIZATION END ===');
     };
 
     initializeAuth();
@@ -205,6 +298,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Listen for token expiry and system events
   useEffect(() => {
     const handleTokenExpired = () => {
+      console.log('AUTH: Token expired event received');
       setTokens(null);
       setUser(null);
       setError('Your session has expired. Please log in again.');

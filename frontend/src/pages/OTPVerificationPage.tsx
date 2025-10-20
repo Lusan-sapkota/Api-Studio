@@ -67,9 +67,7 @@ export function OTPVerificationPage() {
 
       switch (verificationType) {
         case 'bootstrap':
-          console.log('Sending bootstrap OTP verification:', { email, otp: otpValue });
-          response = await apiService.verifyBootstrapOtp(email, otpValue);
-          console.log('Bootstrap OTP response:', response);
+              response = await apiService.verifyBootstrapOtp(email, otpValue);
           nextRoute = '/setup';
           break;
         case 'forgot-password':
@@ -116,14 +114,9 @@ export function OTPVerificationPage() {
       setSuccess('Code verified successfully!');
 
       // Store tokens immediately to avoid race conditions
-      console.log('OTP Verification - Response data:', response.data);
-      console.log('OTP Verification - Verification type:', verificationType);
-      
       if (verificationType === 'bootstrap' && response.data && 'temp_token' in response.data) {
         // Store temp token for first-time setup
-        console.log('OTP Verification - Storing temp token:', response.data.temp_token);
         sessionStorage.setItem('temp_token', response.data.temp_token);
-        console.log('OTP Verification - Token stored, verifying:', sessionStorage.getItem('temp_token'));
       } else if (verificationType === 'forgot-password' && response.data && 'reset_token' in response.data) {
         // Store reset token for password reset
         sessionStorage.setItem('reset_token', response.data.reset_token);
@@ -135,9 +128,6 @@ export function OTPVerificationPage() {
 
       // Navigate to next step after a short delay for UX
       setTimeout(() => {
-        console.log('OTP Verification - About to navigate to:', state?.redirectTo || nextRoute);
-        console.log('OTP Verification - Final token check before navigation:', sessionStorage.getItem('temp_token'));
-        
         // Pass temp token in navigation state as backup
         const navigationState: any = { email, verified: true };
         if (verificationType === 'bootstrap' && response.data && 'temp_token' in response.data) {

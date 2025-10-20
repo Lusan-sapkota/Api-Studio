@@ -36,6 +36,7 @@ interface BootstrapRequest {
 
 interface SetPasswordRequest {
   password: string;
+  confirm_password: string;
   totp_code?: string;
 }
 
@@ -59,6 +60,11 @@ class ApiService {
   constructor() {
     // Load token from localStorage on initialization
     this.token = localStorage.getItem('auth_token');
+    console.log('API Service initialized:', { 
+      hasToken: !!this.token, 
+      tokenLength: this.token?.length || 0,
+      fromLocalStorage: localStorage.getItem('auth_token')?.length || 0
+    });
   }
 
   setToken(token: string | null) {
@@ -71,12 +77,23 @@ class ApiService {
   }
 
   getToken(): string | null {
+    // Always check localStorage as fallback
+    if (!this.token) {
+      this.token = localStorage.getItem('auth_token');
+    }
+    
+    console.log('API Service getToken called:', { 
+      hasToken: !!this.token, 
+      tokenLength: this.token?.length || 0,
+      fromLocalStorage: localStorage.getItem('auth_token')?.length || 0
+    });
     return this.token;
   }
 
   private async request<T>(
     endpoint: string,
-    options: RequestInit = {}
+    options: RequestInit = {},
+    customToken?: string
   ): Promise<ApiResponse<T>> {
     try {
       const headers: Record<string, string> = {
@@ -84,9 +101,10 @@ class ApiService {
         ...options.headers as Record<string, string>,
       };
 
-      // Add JWT token if available
-      if (this.token) {
-        headers['Authorization'] = `Bearer ${this.token}`;
+      // Add JWT token if available (custom token takes precedence)
+      const tokenToUse = customToken || this.token;
+      if (tokenToUse) {
+        headers['Authorization'] = `Bearer ${tokenToUse}`;
       }
 
       const response = await fetch(`${API_BASE_URL}${endpoint}`, {
@@ -111,6 +129,7 @@ class ApiService {
       if (!response.ok) {
         // Handle token expiry
         if (response.status === 401 && this.token) {
+          console.log('API: 401 received, token will be cleared');
           this.setToken(null);
           // Redirect to login or emit event for auth context to handle
           window.dispatchEvent(new CustomEvent('auth:token-expired'));
@@ -288,7 +307,7 @@ class ApiService {
     });
   }
 
-  async login(data: LoginRequest): Promise<ApiResponse<{ user: User; tokens: AuthTokens; requires_2fa?: boolean }>> {
+  async login(data: LoginRequest): Promise<ApiResponse<{ user: User; access_token?: string; token_type?: string }> & { requires_2fa?: boolean }> {
     return this.request('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(data),
@@ -310,18 +329,18 @@ class ApiService {
     return this.request('/api/auth/me');
   }
 
-  async setFirstTimePassword(data: SetPasswordRequest): Promise<ApiResponse<{ qr_code?: string; backup_codes?: string[]; tokens?: AuthTokens }>> {
+  async setFirstTimePassword(data: SetPasswordRequest, tempToken?: string): Promise<ApiResponse<{ two_fa_setup?: { qr_code: string; secret: string; backup_codes: string[] }; setup_token?: string; tokens?: AuthTokens }>> {
     return this.request('/api/auth/first-time-password', {
       method: 'POST',
       body: JSON.stringify(data),
-    });
+    }, tempToken);
   }
 
-  async verify2faSetup(totp_code: string): Promise<ApiResponse<{ user: User; tokens: AuthTokens }>> {
+  async verify2faSetup(totp_code: string, tempToken?: string): Promise<ApiResponse<{ user: User; access_token: string; token_type: string; message: string }>> {
     return this.request('/api/auth/verify-2fa-setup', {
       method: 'POST',
       body: JSON.stringify({ totp_code }),
-    });
+    }, tempToken);
   }
 
   async forgotPassword(data: ForgotPasswordRequest): Promise<ApiResponse<{ message: string }>> {

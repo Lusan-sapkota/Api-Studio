@@ -15,14 +15,26 @@ export function SystemStateChecker({ children }: SystemStateCheckerProps) {
 
   useEffect(() => {
     const checkSystemState = async () => {
-      // Prevent multiple checks for the same path
-      if (hasCheckedForPath.current === location.pathname) {
-        console.log('SystemStateChecker - Already checked for path:', location.pathname);
+      // FIRST PRIORITY: Completely disable during bootstrap flow
+      const tempToken = sessionStorage.getItem('temp_token');
+      if (tempToken) {
+        setSystemState('ready');
+        setIsChecking(false);
         return;
       }
-      
-      console.log('SystemStateChecker - Checking system state for path:', location.pathname);
-      
+
+      // SECOND PRIORITY: Disable for setup page
+      if (location.pathname === '/setup') {
+        setSystemState('ready');
+        setIsChecking(false);
+        return;
+      }
+
+      // Prevent multiple checks for the same path
+      if (hasCheckedForPath.current === location.pathname) {
+        return;
+      }
+
       // Skip check for local mode
       if (configService.isLocalMode()) {
         setSystemState('ready');
@@ -31,31 +43,13 @@ export function SystemStateChecker({ children }: SystemStateCheckerProps) {
         return;
       }
 
-      // COMPLETELY DISABLE system check during bootstrap flow
-      const tempToken = sessionStorage.getItem('temp_token');
-      if (tempToken) {
-        console.log('SystemStateChecker - DISABLED during bootstrap flow (temp_token exists)');
-        setSystemState('ready');
-        setIsChecking(false);
-        hasCheckedForPath.current = location.pathname;
-        return;
-      }
-      
-      // COMPLETELY DISABLE system check for setup page during bootstrap
-      if (location.pathname === '/setup') {
-        console.log('SystemStateChecker - DISABLED for /setup page');
-        setSystemState('ready');
-        setIsChecking(false);
-        hasCheckedForPath.current = location.pathname;
-        return;
-      }
+
 
       // Skip check if already on auth-related pages
       const authPages = ['/bootstrap', '/verify-otp', '/login', '/auth-loading'];
       const isAuthPage = authPages.some(page => location.pathname.startsWith(page));
-      
+
       if (isAuthPage) {
-        console.log('SystemStateChecker - Skipping check for auth page:', location.pathname);
         setSystemState('ready');
         setIsChecking(false);
         hasCheckedForPath.current = location.pathname;
@@ -74,7 +68,7 @@ export function SystemStateChecker({ children }: SystemStateCheckerProps) {
             'Content-Type': 'application/json',
           },
         });
-        
+
         clearTimeout(timeoutId);
 
         if (!response.ok) {
@@ -82,11 +76,9 @@ export function SystemStateChecker({ children }: SystemStateCheckerProps) {
         }
 
         const healthData = await response.json();
-        console.log('SystemStateChecker - Health data:', healthData);
-        
+
         // Check if system is locked (no admin users)
         if (healthData.bootstrap && healthData.bootstrap.is_locked) {
-          console.log('SystemStateChecker - System is locked, redirecting to bootstrap');
           setSystemState('locked');
           // Redirect to bootstrap page
           navigate('/bootstrap', { replace: true });
@@ -98,7 +90,7 @@ export function SystemStateChecker({ children }: SystemStateCheckerProps) {
         hasCheckedForPath.current = location.pathname;
       } catch (error) {
         console.error('System state check failed:', error);
-        
+
         // Try to determine if it's a system lock error (503)
         if (error instanceof Error && error.message.includes('503')) {
           setSystemState('locked');
@@ -117,6 +109,14 @@ export function SystemStateChecker({ children }: SystemStateCheckerProps) {
 
     checkSystemState();
   }, [navigate, location.pathname]);
+
+  // BYPASS SystemStateChecker completely for bootstrap flow (after all hooks)
+  const tempToken = sessionStorage.getItem('temp_token');
+  const isSetupPage = location.pathname === '/setup';
+  
+  if (tempToken || isSetupPage) {
+    return <>{children}</>;
+  }
 
   // Show loading while checking system state
   if (isChecking) {

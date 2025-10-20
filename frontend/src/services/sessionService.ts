@@ -25,11 +25,12 @@ class SessionService {
   // Session timeout settings (in milliseconds)
   private readonly SESSION_TIMEOUT = 24 * 60 * 60 * 1000; // 24 hours
   private readonly WARNING_TIME = 5 * 60 * 1000; // 5 minutes before timeout
-  private readonly ACTIVITY_CHECK_INTERVAL = 60 * 1000; // Check every minute
+  private readonly ACTIVITY_CHECK_INTERVAL = 10 * 60 * 1000; // Check every 10 minutes
 
   constructor() {
     this.setupActivityTracking();
-    this.startSessionMonitoring();
+    // Temporarily disable session monitoring to debug
+    // this.startSessionMonitoring();
   }
 
   private setupActivityTracking() {

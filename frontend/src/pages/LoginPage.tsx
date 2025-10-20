@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation, Link } from 'react-router-dom';
 import { FormInput } from '../components/auth/FormInput';
-import { TOTPVerification } from '../components/auth/TOTPVerification';
+
 import { LoadingButton } from '../components/auth/LoadingSpinner';
 import { ErrorMessage, SuccessMessage } from '../components/auth/ErrorMessage';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,18 +12,19 @@ interface LocationState {
   message?: string;
 }
 
-type LoginStep = 'credentials' | '2fa' | 'success';
+type LoginStep = 'credentials' | 'success';
 
 export function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const { login, isAuthenticated, isLoading: authLoading, error: authError, clearError } = useAuth();
   const state = location.state as LocationState;
-  
+
   const [currentStep, setCurrentStep] = useState<LoginStep>('credentials');
   const [formData, setFormData] = useState({
     email: '',
-    password: ''
+    password: '',
+    totpCode: ''
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,16 +84,16 @@ export function LoginPage() {
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (isLocked) {
       const remainingTime = Math.ceil((lockoutTime! - Date.now()) / 1000 / 60);
       setError(`Account is locked. Please try again in ${remainingTime} minute(s).`);
       return;
     }
 
-    const { email, password } = formData;
+    const { email, password, totpCode } = formData;
 
-    if (!email.trim() || !password.trim()) {
+    if (!email.trim() || !password.trim() || !totpCode.trim()) {
       setError('Please fill in all fields');
       return;
     }
@@ -102,34 +103,37 @@ export function LoginPage() {
       return;
     }
 
+    // Validate TOTP code (required)
+    if (totpCode.length !== 6 || !/^\d{6}$/.test(totpCode)) {
+      setError('TOTP code must be exactly 6 digits');
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
     setSuccess(null);
 
     try {
-      const result = await login(email.trim(), password);
+      const result = await login(email.trim(), password, totpCode.trim());
 
       if (result.success) {
         setCurrentStep('success');
         setSuccess('Login successful! Redirecting...');
-        
+
         // Redirect after a short delay
         setTimeout(() => {
           const from = state?.from?.pathname || '/';
           navigate(from, { replace: true });
         }, 1500);
-      } else if (result.requires_2fa) {
-        setCurrentStep('2fa');
-        setSuccess('Please enter your two-factor authentication code');
       } else {
         // Handle specific error types
         const errorMessage = result.error || 'Login failed';
-        
+
         if (errorMessage.includes('SYSTEM_LOCKED')) {
           navigate('/bootstrap');
           return;
         }
-        
+
         if (errorMessage.includes('Invalid credentials') || errorMessage.includes('User not found')) {
           setError('Invalid email or password. Please check your credentials and try again.');
         } else if (errorMessage.includes('Account locked')) {
@@ -139,9 +143,9 @@ export function LoginPage() {
         } else {
           setError(errorMessage);
         }
-        
+
         setLoginAttempts(prev => prev + 1);
-        
+
         // Lock account after 5 failed attempts (client-side protection)
         if (loginAttempts >= 4) {
           setIsLocked(true);
@@ -152,51 +156,20 @@ export function LoginPage() {
 
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
-      
+
       if (errorMessage.includes('fetch')) {
         setError('Unable to connect to the server. Please check your internet connection and try again.');
       } else {
         setError(errorMessage);
       }
-      
+
       setLoginAttempts(prev => prev + 1);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handle2faSubmit = async (code: string, _isBackupCode: boolean = false) => {
-    setIsLoading(true);
-    setError(null);
 
-    try {
-      const result = await login(formData.email.trim(), formData.password, code);
-
-      if (result.success) {
-        setCurrentStep('success');
-        setSuccess('Login successful! Redirecting...');
-        
-        // Redirect after a short delay
-        setTimeout(() => {
-          const from = state?.from?.pathname || '/';
-          navigate(from, { replace: true });
-        }, 1500);
-      } else {
-        throw new Error(result.error || '2FA verification failed');
-      }
-
-    } catch (err) {
-      throw err; // Re-throw to be handled by TOTPVerification component
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleBackTo2fa = () => {
-    setCurrentStep('credentials');
-    setError(null);
-    setSuccess(null);
-  };
 
   const getRemainingLockoutTime = (): string => {
     if (!lockoutTime) return '';
@@ -218,19 +191,24 @@ export function LoginPage() {
               </svg>
             </div>
             <h1 className="text-2xl font-bold text-neutral-900 dark:text-neutral-100 mb-2">
-              {currentStep === '2fa' ? 'Two-Factor Authentication' : 'Sign In'}
+              Sign In
             </h1>
             <p className="text-neutral-600 dark:text-neutral-400">
-              {currentStep === '2fa' 
-                ? 'Enter your authentication code to complete sign in'
-                : 'Welcome back to API Studio'
-              }
+              Welcome back to API Studio
             </p>
+            <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg">
+              <p className="text-sm text-blue-800 dark:text-blue-200 flex items-center">
+                <svg className="w-4 h-4 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Two-factor authentication is required for all accounts
+              </p>
+            </div>
           </div>
 
           {/* Error/Success Messages */}
           {(error || authError) && (
-            <ErrorMessage 
+            <ErrorMessage
               message={error || authError || ''}
               variant="banner"
               className="mb-6"
@@ -242,7 +220,7 @@ export function LoginPage() {
           )}
 
           {success && (
-            <SuccessMessage 
+            <SuccessMessage
               message={success}
               variant="banner"
               className="mb-6"
@@ -303,43 +281,38 @@ export function LoginPage() {
                 }
               />
 
+              <FormInput
+                label="Authenticator Code"
+                name="totpCode"
+                type="text"
+                value={formData.totpCode}
+                onChange={handleInputChange}
+                placeholder="Enter 6-digit code"
+                required
+                disabled={isLoading || isLocked}
+                maxLength={6}
+                pattern="[0-9]{6}"
+                icon={
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+                  </svg>
+                }
+              />
+
               <LoadingButton
                 type="submit"
                 loading={isLoading}
                 variant="primary"
                 size="lg"
                 className="w-full"
-                disabled={!formData.email.trim() || !formData.password.trim() || isLocked}
+                disabled={!formData.email.trim() || !formData.password.trim() || !formData.totpCode.trim() || isLocked}
               >
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </LoadingButton>
             </form>
           )}
 
-          {/* 2FA Verification */}
-          {currentStep === '2fa' && (
-            <div>
-              <TOTPVerification
-                onVerify={handle2faSubmit}
-                isVerifying={isLoading}
-                error={error || undefined}
-                title="Enter Authentication Code"
-                description="Enter the 6-digit code from your authenticator app"
-                showBackupOption={true}
-                autoSubmit={true}
-              />
-              
-              <div className="mt-6 text-center">
-                <button
-                  onClick={handleBackTo2fa}
-                  disabled={isLoading}
-                  className="text-sm text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                >
-                  ← Back to login
-                </button>
-              </div>
-            </div>
-          )}
+
 
           {/* Success State */}
           {currentStep === 'success' && (

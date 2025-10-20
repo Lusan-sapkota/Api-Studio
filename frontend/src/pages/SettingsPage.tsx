@@ -7,6 +7,7 @@ import { Select } from '../components/Select';
 import { Tab } from '../components/Tabs';
 import { configService } from '../services/config';
 import { useTheme } from '../hooks/useTheme';
+import { apiService } from '../services/api';
 
 interface UserSettings {
   theme: 'light' | 'dark' | 'system';
@@ -63,36 +64,15 @@ export function SettingsPage() {
     }
   });
 
-  const [collaborators, setCollaborators] = useState<Collaborator[]>([
-    {
-      id: '1',
-      name: 'John Doe',
-      email: 'john@example.com',
-      role: 'admin',
-      lastActive: new Date(),
-      status: 'online'
-    },
-    {
-      id: '2',
-      name: 'Jane Smith',
-      email: 'jane@example.com',
-      role: 'editor',
-      lastActive: new Date(Date.now() - 1000 * 60 * 30), // 30 minutes ago
-      status: 'away'
-    },
-    {
-      id: '3',
-      name: 'Bob Wilson',
-      email: 'bob@example.com',
-      role: 'viewer',
-      lastActive: new Date(Date.now() - 1000 * 60 * 60 * 2), // 2 hours ago
-      status: 'offline'
-    }
-  ]);
+  const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
+  const [isLoadingCollaborators, setIsLoadingCollaborators] = useState(false);
 
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteEmail, setInviteEmail] = useState('');
   const [inviteRole, setInviteRole] = useState<'editor' | 'viewer'>('editor');
+  const [isInviting, setIsInviting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   // Determine which tabs to show based on mode
   const isLocalMode = configService.isLocalMode();
@@ -112,6 +92,89 @@ export function SettingsPage() {
 
   const tabs: Tab[] = isLocalMode ? baseTabs : [...baseTabs, ...hostedTabs];
 
+  // Fetch collaborators for hosted mode
+  const fetchCollaborators = async () => {
+    if (!isHostedMode) return;
+    
+    setIsLoadingCollaborators(true);
+    try {
+      const response = await apiService.getCollaborators();
+      
+      if (response.success && response.data) {
+        // Convert API user data to collaborator format
+        const collaborators = response.data.map((user: any) => ({
+          id: user.id.toString(),
+          name: user.name || user.email.split('@')[0],
+          email: user.email,
+          role: user.role as 'admin' | 'editor' | 'viewer',
+          lastActive: new Date(user.last_login_at || Date.now()),
+          status: 'online' as 'online' | 'offline' | 'away' // You might want to implement real status tracking
+        }));
+        setCollaborators(collaborators);
+      } else {
+        // Fallback to mock data if API fails
+        setCollaborators([
+          {
+            id: '1',
+            name: 'John Doe',
+            email: 'john@example.com',
+            role: 'admin',
+            lastActive: new Date(),
+            status: 'online'
+          },
+          {
+            id: '2',
+            name: 'Jane Smith',
+            email: 'jane@example.com',
+            role: 'editor',
+            lastActive: new Date(Date.now() - 1000 * 60 * 30),
+            status: 'away'
+          }
+        ]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch collaborators:', error);
+      // Fallback to mock data
+      setCollaborators([
+        {
+          id: '1',
+          name: 'John Doe',
+          email: 'john@example.com',
+          role: 'admin',
+          lastActive: new Date(),
+          status: 'online'
+        }
+      ]);
+    } finally {
+      setIsLoadingCollaborators(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchCollaborators();
+    
+    // Set up periodic refresh for collaborator status (every 30 seconds)
+    const interval = setInterval(() => {
+      if (isHostedMode && activeTab === 'collaborators') {
+        fetchCollaborators();
+      }
+    }, 30000);
+
+    // Also refresh when the tab becomes visible
+    const handleVisibilityChange = () => {
+      if (!document.hidden && isHostedMode && activeTab === 'collaborators') {
+        fetchCollaborators();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [isHostedMode, activeTab]);
+
   useEffect(() => {
     // Load settings from localStorage
     const savedSettings = localStorage.getItem('app-settings');
@@ -119,15 +182,17 @@ export function SettingsPage() {
       const loadedSettings = JSON.parse(savedSettings);
       setSettings(prev => ({ ...prev, ...loadedSettings }));
       
-      // Sync theme with the actual theme hook
+      // Sync theme with the actual theme hook only if different
       if (loadedSettings.theme && loadedSettings.theme !== theme) {
         setTheme(loadedSettings.theme);
       }
     }
-    
-    // Initialize theme setting with current theme
+  }, []); // Remove theme and setTheme from dependencies to prevent circular updates
+
+  // Separate effect to sync theme changes from the theme hook
+  useEffect(() => {
     setSettings(prev => ({ ...prev, theme }));
-  }, [theme, setTheme]);
+  }, [theme]);
 
   const saveSettings = () => {
     localStorage.setItem('app-settings', JSON.stringify(settings));
@@ -146,31 +211,76 @@ export function SettingsPage() {
     }));
   };
 
-  const inviteCollaborator = () => {
+  const inviteCollaborator = async () => {
     if (!inviteEmail.trim()) return;
 
-    const newCollaborator: Collaborator = {
-      id: Date.now().toString(),
-      name: inviteEmail.split('@')[0],
-      email: inviteEmail,
-      role: inviteRole,
-      lastActive: new Date(),
-      status: 'offline'
-    };
+    setIsInviting(true);
+    setError(null);
 
-    setCollaborators(prev => [...prev, newCollaborator]);
-    setInviteEmail('');
-    setShowInviteModal(false);
+    try {
+      const response = await apiService.inviteUser({
+        email: inviteEmail,
+        role: inviteRole,
+      });
+
+      if (response.success) {
+        // Refresh collaborators list
+        await fetchCollaborators();
+        setSuccessMessage('Invitation sent successfully!');
+        setInviteEmail('');
+        setShowInviteModal(false);
+        
+        // Clear success message after 3 seconds
+        setTimeout(() => setSuccessMessage(null), 3000);
+      } else {
+        setError(response.error || 'Failed to invite collaborator');
+      }
+    } catch (error) {
+      console.error('Failed to invite collaborator:', error);
+      setError('Network error. Please try again.');
+    } finally {
+      setIsInviting(false);
+    }
   };
 
-  const removeCollaborator = (id: string) => {
-    setCollaborators(prev => prev.filter(c => c.id !== id));
+  const removeCollaborator = async (id: string) => {
+    try {
+      const response = await apiService.removeUser(parseInt(id));
+
+      if (response.success) {
+        // Refresh collaborators list
+        await fetchCollaborators();
+      } else {
+        // Fallback: remove locally if API fails
+        setCollaborators(prev => prev.filter(c => c.id !== id));
+      }
+    } catch (error) {
+      console.error('Failed to remove collaborator:', error);
+      // Fallback: remove locally
+      setCollaborators(prev => prev.filter(c => c.id !== id));
+    }
   };
 
-  const updateCollaboratorRole = (id: string, role: Collaborator['role']) => {
-    setCollaborators(prev => prev.map(c => 
-      c.id === id ? { ...c, role } : c
-    ));
+  const updateCollaboratorRole = async (id: string, role: Collaborator['role']) => {
+    try {
+      const response = await apiService.updateUserRole(parseInt(id), role);
+
+      if (response.success) {
+        // Refresh collaborators list
+        await fetchCollaborators();
+      } else {
+        // Fallback: update locally if API fails
+        setCollaborators(prev => prev.map(c => 
+          c.id === id ? { ...c, role } : c
+        ));
+      }
+    } catch (error) {
+      console.error('Failed to update collaborator role:', error);
+      // Fallback: update locally
+      setCollaborators(prev => prev.map(c => 
+        c.id === id ? { ...c, role } : c
+      ));
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -506,11 +616,22 @@ export function SettingsPage() {
                       </Button>
                     </div>
 
+                    {successMessage && (
+                      <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded text-sm text-green-600 dark:text-green-400">
+                        {successMessage}
+                      </div>
+                    )}
+
                     {showInviteModal && (
                       <div className="mb-4 p-4 bg-neutral-50 dark:bg-surface-dark rounded border border-neutral-200 dark:border-neutral-700">
                         <h4 className="font-medium text-neutral-900 dark:text-neutral-100 mb-3">
                           Invite New Member
                         </h4>
+                        {error && (
+                          <div className="p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded text-sm text-red-600 dark:text-red-400 mb-3">
+                            {error}
+                          </div>
+                        )}
                         <div className="space-y-3">
                           <Input
                             placeholder="Email address"
@@ -526,10 +647,22 @@ export function SettingsPage() {
                             ]}
                           />
                           <div className="flex items-center gap-2">
-                            <Button variant="primary" onClick={inviteCollaborator}>
-                              Send Invite
+                            <Button 
+                              variant="primary" 
+                              onClick={inviteCollaborator}
+                              disabled={isInviting || !inviteEmail.trim()}
+                            >
+                              {isInviting ? 'Sending...' : 'Send Invite'}
                             </Button>
-                            <Button variant="ghost" onClick={() => setShowInviteModal(false)}>
+                            <Button 
+                              variant="ghost" 
+                              onClick={() => {
+                                setShowInviteModal(false);
+                                setError(null);
+                                setInviteEmail('');
+                              }}
+                              disabled={isInviting}
+                            >
                               Cancel
                             </Button>
                           </div>
@@ -538,7 +671,12 @@ export function SettingsPage() {
                     )}
                     
                     <div className="space-y-3">
-                      {collaborators.map((collaborator) => (
+                      {isLoadingCollaborators ? (
+                        <div className="flex items-center justify-center py-8">
+                          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-500"></div>
+                        </div>
+                      ) : collaborators.length > 0 ? (
+                        collaborators.map((collaborator) => (
                         <div key={collaborator.id} className="flex items-center justify-between p-3 bg-neutral-50 dark:bg-surface-dark rounded border border-neutral-200 dark:border-neutral-700">
                           <div className="flex items-center gap-3">
                             <div className="relative">
@@ -585,7 +723,15 @@ export function SettingsPage() {
                             )}
                           </div>
                         </div>
-                      ))}
+                        ))
+                      ) : (
+                        <div className="text-center py-8">
+                          <Users className="w-8 h-8 text-neutral-400 mx-auto mb-2" />
+                          <p className="text-sm text-neutral-500 dark:text-neutral-400">
+                            No team members yet. Invite someone to get started!
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </Card>

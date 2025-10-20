@@ -37,61 +37,44 @@ export function FirstTimeSetupPage() {
     secret: string;
     backupCodes: string[];
   } | null>(null);
-  
+
   const hasInitialized = useRef(false);
 
   // Check if we're in local mode and redirect if so
   useEffect(() => {
     if (hasInitialized.current) {
-      console.log('FirstTimeSetupPage - useEffect already ran, skipping');
       return;
     }
-    
-    console.log('FirstTimeSetupPage - useEffect triggered (first time)');
-    console.log('FirstTimeSetupPage - configService.isLocalMode():', configService.isLocalMode());
-    
+
     if (configService.isLocalMode()) {
-      console.log('FirstTimeSetupPage - Local mode detected, redirecting to /');
       navigate('/');
       return;
     }
 
     // Get temp token from session storage or navigation state
     let tempToken = sessionStorage.getItem('temp_token');
-    console.log('FirstTimeSetupPage - temp token from storage:', tempToken);
-    
+
     // Fallback to navigation state if not in sessionStorage
     if (!tempToken && state?.temp_token) {
       tempToken = state.temp_token;
-      console.log('FirstTimeSetupPage - temp token from navigation state:', tempToken);
       // Store it in sessionStorage for future use
       sessionStorage.setItem('temp_token', tempToken);
     }
-    
+
     if (!tempToken) {
-      console.log('FirstTimeSetupPage - No temp token found, redirecting to bootstrap in 3 seconds...');
-      console.log('FirstTimeSetupPage - sessionStorage temp_token:', sessionStorage.getItem('temp_token'));
-      console.log('FirstTimeSetupPage - navigation state:', state);
-      setTimeout(() => {
-        console.log('FirstTimeSetupPage - Executing redirect to bootstrap');
-        navigate('/bootstrap');
-      }, 3000);
+      navigate('/bootstrap');
       return;
     }
 
-    console.log('FirstTimeSetupPage - Setting temp token for API calls');
-    // Set the temp token for API calls
-    apiService.setToken(tempToken);
-    console.log('FirstTimeSetupPage - Token set successfully, component should stay mounted');
-    
+    // Temp token is stored in sessionStorage and will be passed directly to API calls
+    // Don't set it as the main API token to avoid AuthContext interference
+
     // Mark as initialized
     hasInitialized.current = true;
 
-    // Cleanup function - DON'T remove temp token to prevent issues
+    // Cleanup function - preserve temp token for potential remounting
     return () => {
-      console.log('FirstTimeSetupPage - Cleanup function called, but NOT removing temp token');
-      alert('FirstTimeSetupPage is unmounting! This should not happen.');
-      // sessionStorage.removeItem('temp_token'); // Commented out to prevent issues
+      // Don't remove temp_token to allow graceful remounting if needed
     };
     apiService.setToken(tempToken);
   }, [navigate]); // Only depend on navigate, not state
@@ -152,9 +135,16 @@ export function FirstTimeSetupPage() {
     setSuccess(null);
 
     try {
+      const tempToken = sessionStorage.getItem('temp_token');
+      if (!tempToken) {
+        setError('Session expired. Please restart the setup process.');
+        return;
+      }
+
       const response = await apiService.setFirstTimePassword({
-        password
-      });
+        password,
+        confirm_password: confirmPassword
+      }, tempToken);
 
       if (response.success === false || response.error) {
         setError(response.error || 'Failed to set password');
@@ -164,12 +154,18 @@ export function FirstTimeSetupPage() {
       const data = response.data!;
 
       // If 2FA setup data is returned, proceed to 2FA setup
-      if (data.qr_code && data.backup_codes) {
+      if (data.two_fa_setup && data.two_fa_setup.qr_code && data.two_fa_setup.backup_codes) {
         setSetupData({
-          qrCodeUrl: data.qr_code,
-          secret: '', // The secret is embedded in the QR code
-          backupCodes: data.backup_codes
+          qrCodeUrl: data.two_fa_setup.qr_code,
+          secret: data.two_fa_setup.secret || '',
+          backupCodes: data.two_fa_setup.backup_codes
         });
+
+        // Update token for 2FA verification
+        if (data.setup_token) {
+          sessionStorage.setItem('temp_token', data.setup_token);
+        }
+
         setCurrentStep('2fa-setup');
         setSuccess('Password set successfully! Now let\'s set up two-factor authentication.');
       } else if (data.tokens) {
@@ -190,16 +186,24 @@ export function FirstTimeSetupPage() {
     setError(null);
 
     try {
-      const response = await apiService.verify2faSetup(code);
+      const tempToken = sessionStorage.getItem('temp_token');
+      if (!tempToken) {
+        throw new Error('Session expired. Please restart the setup process.');
+      }
+
+      const response = await apiService.verify2faSetup(code, tempToken);
 
       if (response.success === false || response.error) {
         throw new Error(response.error || '2FA verification failed');
       }
 
-      const data = response.data!;
+      const data = response.data! as any;
 
-      // Set user and tokens
-      setTokens(data.tokens);
+      // Set user and tokens - backend returns access_token and token_type directly
+      setTokens({
+        access_token: data.access_token,
+        token_type: data.token_type
+      });
       setUser(data.user);
 
       // Clear temp token
@@ -265,11 +269,7 @@ export function FirstTimeSetupPage() {
             <p className="text-neutral-600 dark:text-neutral-400 mb-2">
               {getStepDescription()}
             </p>
-            {/* DEBUG INDICATOR */}
-            <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-2 rounded mb-4">
-              ✅ FirstTimeSetupPage is mounted and stable
-            </div>
-            
+
             {email && (
               <p className="text-sm text-neutral-500 dark:text-neutral-400">
                 Setting up account for: <span className="font-medium">{email}</span>
